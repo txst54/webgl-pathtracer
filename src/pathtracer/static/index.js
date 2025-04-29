@@ -1,1 +1,1 @@
-import "./minecraft/index.js";
+import "./pathtracer/index.js";

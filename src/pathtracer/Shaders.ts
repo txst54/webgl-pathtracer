@@ -114,8 +114,10 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
     // Simple scene: sphere at center
     vec3 sphereCenter = vec3(0.0, 0.0, 0.0);
     float sphereRadius = 1.0;
+    float roulette = random(vec3(1.0), ray.x * 11.87 + ray.y * 78.77 + ray.z * 26.63 + uTime * 51.79);
+    int num_iters = int(ceil(log(1.0-roulette)/log(0.9)));
     
-    for (int bounce = 0; bounce < 5; bounce++) {
+    for (int bounce = 0; bounce < 100; bounce++) {
         vec2 tRoom = intersectCube(origin, ray, roomCubeMin, roomCubeMax);
         float isect = intersectSphere(origin, ray, sphereCenter, sphereRadius);
         float t = infinity;
@@ -148,6 +150,10 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
         accumulatedColor += colorMask * (0.5 * diffuse * shadowIntensity);
         accumulatedColor += colorMask * specularHighlight * shadowIntensity;
         origin = hit;
+        
+        if (bounce > num_iters) {
+            break;
+        }
     }
     return accumulatedColor;
 }
