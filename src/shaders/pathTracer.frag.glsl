@@ -1,0 +1,98 @@
+precision highp float;
+
+uniform vec3 uEye;
+uniform float uTime;
+varying vec3 initialRay;
+uniform sampler2D uTexture;
+uniform float uTextureWeight;
+uniform vec2 uRes;
+vec3 roomCubeMin = vec3(-10.0, -10.0, -10.0);
+vec3 roomCubeMax = vec3(10.0, 10.0, 10.0);
+vec3 light = vec3(0.0, 5.0, 0.0);
+float infinity = 10000.0;
+float epsilon = 0.0001;
+float lightSize = 0.1;
+
+// use_macro{RAND_LIB}
+// use_macro{SPHERE_LIB}
+// use_macro{CUBE_LIB}
+
+vec3 cosineWeightedDirection(float seed, vec3 normal) {
+    // Simple cosine-weighted random direction
+    float u = random(vec3(12.9898, 78.233, 151.7182), seed);
+    float v = random(vec3(63.7264, 10.873, 623.6736), seed);
+    float r = sqrt(u);
+    float angle = 6.28318530718 * v;
+    vec3 sdir, tdir;
+    if (abs(normal.x) < .5) {
+        sdir = cross(normal, vec3(1,0,0));
+    } else {
+        sdir = cross(normal, vec3(0,1,0));
+    }
+    tdir = cross(normal, sdir);
+    return r*cos(angle)*sdir + r*sin(angle)*tdir + sqrt(1.-u)*normal;
+}
+
+float shadow(vec3 origin, vec3 ray, vec3 sphereCenter, float sphereRadius) {
+    float t = intersectSphere(origin, ray, sphereCenter, sphereRadius);
+    if (t < 1.0) return 0.0;
+    return 1.0;
+}
+
+vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
+    vec3 colorMask = vec3(1.0);
+    vec3 accumulatedColor = vec3(0.0);
+
+    // Simple scene: sphere at center
+    vec3 sphereCenter = vec3(0.0, 0.0, 0.0);
+    float sphereRadius = 1.0;
+    float roulette = random(vec3(1.0), ray.x * 11.87 + ray.y * 78.77 + ray.z * 26.63 + uTime * 51.79);
+    int num_iters = int(ceil(log(1.0-roulette)/log(0.9)));
+
+    for (int bounce = 0; bounce < 100; bounce++) {
+        vec2 tRoom = intersectCube(origin, ray, roomCubeMin, roomCubeMax);
+        float isect = intersectSphere(origin, ray, sphereCenter, sphereRadius);
+        float t = infinity;
+        if (tRoom.x < tRoom.y) t = tRoom.y;
+        if (isect < t) t = isect;
+
+        vec3 hit = origin + ray * t;
+        vec3 surfaceColor = vec3(0.75);
+        float specularHighlight = 0.0;
+        vec3 normal;
+
+        if (t == tRoom.y) {
+            normal = -normalForCube(hit, roomCubeMin, roomCubeMax);
+            if(hit.x < -9.9999) surfaceColor = vec3(0.1, 0.5, 1.0);
+            else if(hit.x > 9.9999) surfaceColor = vec3(1.0, 0.9, 0.1);
+            ray = cosineWeightedDirection(uTime + float(bounce), normal);
+        } else if (t == infinity) {
+            break;
+        }
+        else {
+            normal = normalForSphere(hit, sphereCenter, sphereRadius);
+            ray = cosineWeightedDirection(uTime + float(bounce), normal);
+        }
+        vec3 toLight = light - hit;
+        float diffuse = max(0.0, dot(normalize(toLight), normal));
+
+        float shadowIntensity = shadow(hit + normal * epsilon, toLight, sphereCenter, sphereRadius);
+
+        colorMask *= surfaceColor;
+        accumulatedColor += colorMask * (0.5 * diffuse * shadowIntensity);
+        accumulatedColor += colorMask * specularHighlight * shadowIntensity;
+        origin = hit;
+
+        if (bounce > num_iters) {
+            break;
+        }
+    }
+    return accumulatedColor;
+}
+
+void main() {
+    vec3 newLight = light + uniformlyRandomVector(uTime - 53.0) * lightSize;
+    vec3 texture = texture2D(uTexture, gl_FragCoord.xy / uRes).rgb;
+    vec3 color = mix(calculateColor(uEye, initialRay, newLight), texture, uTextureWeight);
+    gl_FragColor = vec4(color, 1.0);
+}
