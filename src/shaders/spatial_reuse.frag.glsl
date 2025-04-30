@@ -17,7 +17,7 @@ void main() {
     float selectedWeight = metaData.r;   // W_i (initial)
     float selectedWSum   = metaData.g;   // W_sum_i
     float totalWeightSum = selectedWeight;
-    float M = 0.0; // how many neigbors we checked
+    float M = 1.0; // how many neigbors we checked
 
     for (int dx = -1; dx <= 1; ++dx) {
         for (int dy = -1; dy <= 1; ++dy) {
