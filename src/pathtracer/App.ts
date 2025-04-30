@@ -242,6 +242,10 @@ export class MinecraftAnimation extends CanvasAnimation {
 
 export function initializeCanvas(): void {
   const canvas = document.getElementById("glCanvas") as HTMLCanvasElement;
+  console.log('WebGL version:',
+      (document.createElement('canvas').getContext('webgl2') && 'WebGL 2.0') ||
+      (document.createElement('canvas').getContext('webgl') && 'WebGL 1.0') ||
+      'WebGL not supported');
   /* Start drawing */
   const canvasAnimation: MinecraftAnimation = new MinecraftAnimation(canvas);
   canvasAnimation.start();  
