@@ -6,7 +6,9 @@ import {
 import { GUI } from "./Gui.js";
 import {
   pathTracerVSText,
-  pathTracerFSText
+  pathTracerFSText,
+  spatialReuseVSText,
+    spatialReuseFSText
 } from "./Shaders.js";
 import { Mat4, Vec4, Vec3 } from "../lib/TSM.js";
 import { RenderPass } from "../lib/webglutils/RenderPass.js";
@@ -22,11 +24,17 @@ export class MinecraftAnimation extends CanvasAnimation {
   /*  Cube Rendering */
   private cubeGeometry: Cube;
   private pathTracerRenderPass: RenderPass;
+  private spatialRenderPass: RenderPass;
   private textures: WebGLTexture[];
   private sampleCount: number;
   private framebuffer: WebGLFramebuffer;
   private cachedCameraRays: { ray00: Vec3, ray01: Vec3, ray10: Vec3, ray11: Vec3 };
   private pingpong: number = 0;
+  private reservoirSampleTexPrev: WebGLTexture;
+  private reservoirMetaTexPrev: WebGLTexture;
+  private reservoirSampleTexNext: WebGLTexture;
+  private reservoirMetaTexNext: WebGLTexture;
+  private pathTrace : boolean;
 
   /* Global Rendering Info */
   private lightPosition: Vec4;
@@ -41,7 +49,7 @@ export class MinecraftAnimation extends CanvasAnimation {
   
   constructor(canvas: HTMLCanvasElement) {
     super(canvas);
-
+    this.pathTrace = true;
     this.canvas2d = document.getElementById("textCanvas") as HTMLCanvasElement;
   
     this.ctx = Debugger.makeDebugContext(this.ctx);
@@ -66,10 +74,16 @@ export class MinecraftAnimation extends CanvasAnimation {
     gl.bindTexture(gl.TEXTURE_2D, null);
     this.sampleCount = 0;
     this.updateCameraRays();
+    this.reservoirSampleTexPrev = gl.createTexture();
+    this.reservoirMetaTexPrev = gl.createTexture();
+    this.reservoirSampleTexNext = gl.createTexture();
+    this.reservoirMetaTexNext = gl.createTexture();
 
     this.pathTracerRenderPass = new RenderPass(gl, pathTracerVSText, pathTracerFSText);
     this.initPathTracer();
-    
+    this.spatialRenderPass = new RenderPass(gl, spatialReuseVSText, spatialReuseFSText);
+    this.initSpatialRestir();
+
     this.lightPosition = new Vec4([-1000, 1000, -1000, 1]);
     this.backgroundColor = new Vec4([0.0, 0.37254903, 0.37254903, 1.0]);    
   }
@@ -178,6 +192,71 @@ export class MinecraftAnimation extends CanvasAnimation {
     return this.sampleCount / (this.sampleCount + 1);
   }
 
+  private setupTexture(tex, internalFormat) {
+    const gl = this.ctx;
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, internalFormat, this.canvas2d.width, this.canvas2d.height, 0,
+        gl.RGBA, gl.FLOAT, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  }
+
+  private initSpatialRestir(): void {
+    this.spatialRenderPass.addUniform("uRes", (gl, loc) => {
+      gl.uniform2f(loc, this.canvas2d.width, this.canvas2d.height);
+    });
+
+    this.pathTracerRenderPass.addUniform("uTime",
+      (gl: WebGLRenderingContext, loc: WebGLUniformLocation) => {
+        gl.uniform1f(loc, performance.now() * 0.001);
+      });
+
+
+    const gl = this.ctx;
+    const framebuffer = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+
+
+    const attachments = [gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1];
+
+    this.setupTexture(this.reservoirSampleTexNext, gl.RGBA32F);
+    this.setupTexture(this.reservoirMetaTexNext, gl.RGBA32F);
+
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.reservoirSampleTexNext, 0);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, this.reservoirMetaTexNext, 0);
+    gl.drawBuffers(attachments);
+
+    this.spatialRenderPass.addUniform("uReservoirSampleTex", (gl, loc) => {
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, this.reservoirSampleTexPrev);
+      gl.uniform1i(loc, 0);
+    });
+
+    this.spatialRenderPass.addUniform("uReservoirMetaTex", (gl, loc) => {
+      gl.activeTexture(gl.TEXTURE1);
+      gl.bindTexture(gl.TEXTURE_2D, this.reservoirMetaTexPrev);
+      gl.uniform1i(loc, 1);
+    });
+  }
+
+  private swapReservoirTextures() {
+    [
+      this.reservoirSampleTexPrev,
+      this.reservoirSampleTexNext
+    ] = [
+      this.reservoirSampleTexNext,
+      this.reservoirSampleTexPrev
+    ];
+
+    [
+      this.reservoirMetaTexPrev,
+      this.reservoirMetaTexNext
+    ] = [
+      this.reservoirMetaTexNext,
+      this.reservoirMetaTexPrev
+    ];
+  }
+
   private getTexture() {
     return this.textures[this.pingpong];
   }
@@ -226,7 +305,13 @@ export class MinecraftAnimation extends CanvasAnimation {
 
     //TODO: Render multiple chunks around the player, using Perlin noise shaders
     // gl.bindTexture(gl.TEXTURE_2D, this.textures[0]);
-    this.pathTracerRenderPass.draw();
+    if (this.pathTrace) {
+      this.pathTracerRenderPass.draw();
+    } else {
+      // do the temporal and 1 ray path trace here
+      this.spatialRenderPass.draw();
+      this.swapReservoirTextures();
+    }
 
   }
 
