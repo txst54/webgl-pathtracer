@@ -16,3 +16,17 @@ vec3 uniformlyRandomVector(float seed) {
     return uniformlyRandomDirection(seed) * sqrt(random(vec3(36.7539, 50.3658, 306.2759), seed));
 }
 // end_macro
+
+// begin_macro{CONSTANTS}
+vec3 roomCubeMin = vec3(-10.0, -10.0, -10.0);
+vec3 roomCubeMax = vec3(10.0, 10.0, 10.0);
+vec3 sphereCenter = vec3(0.0, 0.0, 0.0);
+float sphereRadius = 1.0;
+vec3 light = vec3(0.0, 5.0, 0.0);
+float lightIntensity = 1.0;
+float infinity = 10000.0;
+float epsilon = 0.0001;
+float lightSize = 0.1;
+float pi = 3.14159265359;
+float maxBounces = 100;
+// end_macro

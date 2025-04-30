@@ -21,13 +21,15 @@ uniform float uTime;
 varying vec3 initialRay;
 uniform sampler2D uTexture;
 uniform float uTextureWeight;
-uniform vec2 uRes;
-vec3 roomCubeMin = vec3(-10.0, -10.0, -10.0);
+uniform vec2 uRes;vec3 roomCubeMin = vec3(-10.0, -10.0, -10.0);
 vec3 roomCubeMax = vec3(10.0, 10.0, 10.0);
+vec3 sphereCenter = vec3(0.0, 0.0, 0.0);
+float sphereRadius = 1.0;
 vec3 light = vec3(0.0, 5.0, 0.0);
 float infinity = 10000.0;
 float epsilon = 0.0001;
-float lightSize = 0.1;float random(vec3 scale, float seed) {
+float lightSize = 0.1;
+float pi = 3.14159265359;float random(vec3 scale, float seed) {
     return fract(sin(dot(gl_FragCoord.xyz + seed, scale)) * 43758.5453 + seed);
 }
 
@@ -42,21 +44,6 @@ vec3 uniformlyRandomDirection(float seed) {
 
 vec3 uniformlyRandomVector(float seed) {
     return uniformlyRandomDirection(seed) * sqrt(random(vec3(36.7539, 50.3658, 306.2759), seed));
-}float intersectSphere(vec3 origin, vec3 ray, vec3 sphereCenter, float sphereRadius) {
-    vec3 toSphere = origin - sphereCenter;
-    float a = dot(ray, ray);
-    float b = 2.0 * dot(toSphere, ray);
-    float c = dot(toSphere, toSphere) - sphereRadius*sphereRadius;
-    float discriminant = b*b - 4.0*a*c;
-    if(discriminant > 0.0) {
-        float t = (-b - sqrt(discriminant)) / (2.0 * a);
-        if(t > 0.0) return t;
-    }
-    return infinity;
-}
-
-vec3 normalForSphere(vec3 hit, vec3 sphereCenter, float sphereRadius) {
-    return (hit - sphereCenter) / sphereRadius;
 }vec2 intersectCube(vec3 origin, vec3 ray, vec3 cubeMin, vec3 cubeMax) {
     vec3 tMin = (cubeMin - origin) / ray;
     vec3 tMax = (cubeMax - origin) / ray;
@@ -80,9 +67,57 @@ vec3 normalForCube(vec3 hit, vec3 cubeMin, vec3 cubeMax) {
     return vec3(0.0, 0.0, -1.0);
     else
     return vec3(0.0, 0.0, 1.0);
-}
+}float intersectSphere(vec3 origin, vec3 ray, vec3 sphereCenter, float sphereRadius) {
+    vec3 toSphere = origin - sphereCenter;
+    float a = dot(ray, ray);
+    float b = 2.0 * dot(toSphere, ray);
+    float c = dot(toSphere, toSphere) - sphereRadius*sphereRadius;
+    float discriminant = b*b - 4.0*a*c;
+    if(discriminant > 0.0) {
+        float t = (-b - sqrt(discriminant)) / (2.0 * a);
+        if(t > 0.0) return t;
+    }
+    return infinity;
+}
 
-vec3 cosineWeightedDirection(float seed, vec3 normal) {
+vec3 normalForSphere(vec3 hit, vec3 sphereCenter, float sphereRadius) {
+    return (hit - sphereCenter) / sphereRadius;
+}struct Isect {
+    float t; // Distance along the ray
+    vec3 position;
+    vec3 normal;
+    vec3 albedo; // Simplified material color
+    // bool isLight; // Is the hit surface a light source?
+    // vec3 emission; // Light emission color
+    float pdf; // PDF of sampling this hit (e.g., light sampling PDF)
+};
+
+Isect intersect(vec3 ray, vec3 origin) {
+    Isect isect;
+    vec2 tRoom = intersectCube(origin, ray, roomCubeMin, roomCubeMax);
+    float tSphere = intersectSphere(origin, ray, sphereCenter, sphereRadius);
+    float t = infinity;
+    if (tRoom.x < tRoom.y) t = tRoom.y;
+    if (tSphere < t) t = tSphere;
+
+    isect.t = t;
+    isect.albedo = vec3(0.75);
+    isect.position = origin + ray * t;
+    // float specularHighlight = 0.0;
+
+    if (t == infinity) {
+        return isect;
+    }
+
+    if (t == tRoom.y) {
+        isect.normal = -normalForCube(isect.position, roomCubeMin, roomCubeMax);
+        if(isect.position.x < -9.9999) isect.albedo = vec3(0.1, 0.5, 1.0);
+        else if(isect.position.x > 9.9999) isect.albedo = vec3(1.0, 0.9, 0.1);
+    } else {
+        isect.normal = normalForSphere(isect.position, sphereCenter, sphereRadius);
+    }
+    return isect;
+}vec3 cosineWeightedDirection(float seed, vec3 normal) {
     // Simple cosine-weighted random direction
     float u = random(vec3(12.9898, 78.233, 151.7182), seed);
     float v = random(vec3(63.7264, 10.873, 623.6736), seed);
@@ -98,6 +133,12 @@ vec3 cosineWeightedDirection(float seed, vec3 normal) {
     return r*cos(angle)*sdir + r*sin(angle)*tdir + sqrt(1.-u)*normal;
 }
 
+float pdfCosineWeighted(vec3 direction, vec3 normal) {
+    float cosTheta = dot(direction, normal);
+    if (cosTheta <= 0.0) return 0.0;
+    return cosTheta / pi;
+}
+
 float shadow(vec3 origin, vec3 ray, vec3 sphereCenter, float sphereRadius) {
     float t = intersectSphere(origin, ray, sphereCenter, sphereRadius);
     if (t < 1.0) return 0.0;
@@ -109,44 +150,23 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
     vec3 accumulatedColor = vec3(0.0);
 
     // Simple scene: sphere at center
-    vec3 sphereCenter = vec3(0.0, 0.0, 0.0);
-    float sphereRadius = 1.0;
     float roulette = random(vec3(1.0), ray.x * 11.87 + ray.y * 78.77 + ray.z * 26.63 + uTime * 51.79);
     int num_iters = int(ceil(log(1.0-roulette)/log(0.9)));
 
     for (int bounce = 0; bounce < 100; bounce++) {
-        vec2 tRoom = intersectCube(origin, ray, roomCubeMin, roomCubeMax);
-        float isect = intersectSphere(origin, ray, sphereCenter, sphereRadius);
-        float t = infinity;
-        if (tRoom.x < tRoom.y) t = tRoom.y;
-        if (isect < t) t = isect;
-
-        vec3 hit = origin + ray * t;
-        vec3 surfaceColor = vec3(0.75);
-        float specularHighlight = 0.0;
-        vec3 normal;
-
-        if (t == tRoom.y) {
-            normal = -normalForCube(hit, roomCubeMin, roomCubeMax);
-            if(hit.x < -9.9999) surfaceColor = vec3(0.1, 0.5, 1.0);
-            else if(hit.x > 9.9999) surfaceColor = vec3(1.0, 0.9, 0.1);
-            ray = cosineWeightedDirection(uTime + float(bounce), normal);
-        } else if (t == infinity) {
+        Isect isect = intersect(ray, origin);
+        if (isect.t == infinity) {
             break;
         }
-        else {
-            normal = normalForSphere(hit, sphereCenter, sphereRadius);
-            ray = cosineWeightedDirection(uTime + float(bounce), normal);
-        }
-        vec3 toLight = light - hit;
-        float diffuse = max(0.0, dot(normalize(toLight), normal));
+        ray = cosineWeightedDirection(uTime + float(bounce), isect.normal);
+        vec3 toLight = light - isect.position;
+        float diffuse = max(0.0, dot(normalize(toLight), isect.normal));
 
-        float shadowIntensity = shadow(hit + normal * epsilon, toLight, sphereCenter, sphereRadius);
+        float shadowIntensity = shadow(isect.position + isect.normal * epsilon, toLight, sphereCenter, sphereRadius);
 
-        colorMask *= surfaceColor;
+        colorMask *= isect.albedo;
         accumulatedColor += colorMask * (0.5 * diffuse * shadowIntensity);
-        accumulatedColor += colorMask * specularHighlight * shadowIntensity;
-        origin = hit;
+        origin = isect.position;
 
         if (bounce > num_iters) {
             break;
