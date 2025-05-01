@@ -66,13 +66,9 @@ float luminance(vec3 L) {
     return max(dot(L, vec3(1.0)), 0.0);
 }
 
-float compute_p_hat(vec3 sampleDir, vec3 surfaceNormal, vec3 lightPos, float solidAnglePDF) {
-    float cosTheta = max(dot(surfaceNormal, sampleDir), 1e-4);
-    float distance2 = dot(lightPos - last_vertex_pos, lightPos - last_vertex_pos);
-    float jacobian = 1.0 / distance2;
+float compute_p_hat(float solidAnglePDF, float jacobian) {
     return solidAnglePDF * jacobian;
 }
-
 
 Reservoir tracePath(vec3 ray, vec3 origin) {
     Reservoir localReservoir;
@@ -91,15 +87,28 @@ Reservoir tracePath(vec3 ray, vec3 origin) {
 
     float initSeed = ray.x * 85.63 + ray.y * 53.47 + ray.z * 25.93 + uTime * 49.69;
 
-    for (int bounce = 0; bounce < maxBounces; ++bounce) {
-        float currentSeed = initSeed;
+    Reservoir initializeReservoir() {
+        Reservoir r;
+        r.Y.rc_vertex.w = 0.0;
+        r.Y.rc_vertex.L = vec3(0.0);
+        r.Y.epsilon_1 = 0.0;
+        r.Y.epsilon_2 = 0.0;
+        r.Y.k = 0;
+        r.Y.J = 0.0;
+        r.W_Y = 0.0;
+        r.w_sum = 0.0;
+        r.c = 0.0;
+        return r;
+    }
+    int bounce = 0;
+    for (bounce = 0; bounce < maxBounces; bounce++) {
+        float currentSeed = initSeed + bounce * 36.23;
         Isect isect = intersect(origin, ray);
         if (isect.t == infinity) {
-            // Escape to environment
-            last_pos = origin + ray * 10000.0;
+            last_pos = origin + ray * infinity;
             last_normal = -ray;
             last_dir_in = -ray;
-            albedo = vec3(1.0); // placeholder
+            albedo = vec3(0.0); // could add sampling from an env
             break;
         }
 
@@ -110,7 +119,7 @@ Reservoir tracePath(vec3 ray, vec3 origin) {
         albedo = isect.albedo;
 
         // Sample next direction
-        vec3 new_dir = cosineWeightedDirection(seed, isect.normal);
+        vec3 new_dir = cosineWeightedDirection(currentSeed, isect.normal);
         float pdf = pdfCosineWeighted(new_dir, isect.normal);
 
         if (pdf < 1e-6) break;
@@ -136,17 +145,23 @@ Reservoir tracePath(vec3 ray, vec3 origin) {
     vec3 f = bsdf * cosTheta;
 
     vec3 L = f * Li * visibility;
-    float hat_p = compute_p_hat(light_dir, last_normal, light, pdf); // your guiding PDF
-    float W = (hat_p > 0.0) ? luminance(L) / hat_p : 0.0;
+    float w = luminance(L); // our weightage formula
+    float cosTheta = max(dot(surfaceNormal, sampleDir), 1e-4);
+    float distance2 = dot(lightPos - last_vertex_pos, lightPos - last_vertex_pos);
+    float jacobian = cosTheta / distance2;
+    float hat_p = compute_p_hat(pdf, jacobian);
+    float W = (hat_p > 0.0) ? w / hat_p : 0.0;
 
     // -- Populate Reservoir --
-    localReservoir.sampleDir = light_dir;
-    localReservoir.L = L;
-    localReservoir.W = W;
-    localReservoir.hat_p = hat_p;
-    localReservoir.path_pos = last_pos;
-    localReservoir.path_dir = last_dir_in;
-    localReservoir.M = 1.0;
+    localReservoir.Y.rc_vertex.w = w;
+    localReservoir.Y.rc_vertex.L = L;
+    // localReservoir.Y.epsilon_1 = 0.0; since there is only one candidate no need for epsilon_1
+    localReservoir.Y.epsilon_2 = random(initSeed + (bounce + 1) * 36.23);
+    localReservoir.Y.k = bounce;
+    localReservoir.Y.J = jacobian;
+    localReservoir.W_Y = W;
+    // localReservoir.w_sum = 0.0; since there is only one candidate theres no need to store this
+    localReservoir.c = 1.0;
     return localReservoir;
 }
 

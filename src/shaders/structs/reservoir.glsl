@@ -1,18 +1,37 @@
 // begin_macro{RESERVOIR_LIB}
 
+struct RCVertex {
+    float w;
+    vec3 L;
+    // todo add triangle Id, barycentric tuple, lobe indices
+};
+
+struct Sample_Y {
+    RCVertex rc_vertex;
+    float epsilon_1;
+    float epsilon_2;
+    int k;
+    float J;
+};
+
 struct Reservoir {
-    vec3 x_it;       // Light sample direction or position (X_i^t)
-    float weight;      // Importance weight (W_X_i^t)
-    float sumWeight;   // Sum of weights over all candidates
-    int count;         // Number of samples seen
+    Sample_Y Y;
+    float W_Y;
+    float w_sum;
+    float c;
 };
 
 Reservoir initializeReservoir() {
     Reservoir r;
-    r.x_it = vec3(0.0);
-    r.weight = 0.0;
-    r.sumWeight = 0.0;
-    r.count = 0;
+    r.Y.rc_vertex.w = 0.0;
+    r.Y.rc_vertex.L = vec3(0.0);
+    r.Y.epsilon_1 = 0.0;
+    r.Y.epsilon_2 = 0.0;
+    r.Y.k = 0;
+    r.Y.J = 0.0;
+    r.W_Y = 0.0;
+    r.w_sum = 0.0;
+    r.c = 0.0;
     return r;
 }
 
