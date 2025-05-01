@@ -26,7 +26,7 @@ void main() {
             if (neighbor.x < 0 || neighbor.y < 0 || neighbor.x >= uRes.x || neighbor.y >= uRes.y) continue;
             vec4 sampleN = texelFetch(uReservoirSampleTex, neighbor, 0);
             vec4 metaN   = texelFetch(uReservoirMetaTex, neighbor, 0);
-            if (abs(selectedSample.a - sampleN.a) > 0.01) continue; // this neighbor isnt very neighborly
+            if ((abs(selectedSample.a - sampleN.a)) / selectedSample.a > 0.1) continue; // this neighbor isnt very neighborly
             float Wj     = metaN.r;   // candidate's weight
             float WsumJ  = metaN.g;   // for later use if selected
             M += 1.0;
