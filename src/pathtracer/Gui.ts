@@ -187,6 +187,10 @@ export class GUI implements IGUI {
         this.animation.reset();
         break;
       }
+      case "KeyP": {
+        this.animation.swapMode();
+        break;
+      }
       case "Space": {
         this.animation.jump();
         break;

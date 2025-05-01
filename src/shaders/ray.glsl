@@ -14,7 +14,7 @@ vec3 cosineWeightedDirection(float seed, vec3 normal) {
         sdir = cross(normal, vec3(0,1,0));
     }
     tdir = cross(normal, sdir);
-    return r*cos(angle)*sdir + r*sin(angle)*tdir + sqrt(1.-u)*normal;
+    return normalize(r*cos(angle)*sdir + r*sin(angle)*tdir + sqrt(1.-u)*normal);
 }
 
 float pdfCosineWeighted(vec3 direction, vec3 normal) {

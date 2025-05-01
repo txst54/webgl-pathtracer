@@ -8,7 +8,7 @@ import {
   pathTracerVSText,
   pathTracerFSText,
   initialPassFSText,
-  spatialReuseFSText
+  spatialReuseFSText, risFSText, ReSTIR_initialPassFSText
 } from "./Shaders.js";
 import { Mat4, Vec4, Vec3 } from "../lib/TSM.js";
 import { RenderPass } from "../lib/webglutils/RenderPass.js";
@@ -24,12 +24,20 @@ export class PathTracer extends CanvasAnimation {
   /*  Rendering */
   // PathTracer
   private pathTracerRenderPass: RenderPass;
+  private startTime: number = performance.now();
+
+  // RIS
+  private risRenderPass: RenderPass;
 
   // ReSTIR
+  private reSTIRInitRenderPass: RenderPass;
+
+  // ReSTIR PT
   private initialPassRenderPass: RenderPass;
   private spatialRenderPass: RenderPass;
 
-  private framebuffer: WebGLFramebuffer;
+  private framebuffer_pt: WebGLFramebuffer;
+  private framebuffer_restir: WebGLFramebuffer;
   private cachedCameraRays: { ray00: Vec3, ray01: Vec3, ray10: Vec3, ray11: Vec3 };
 
   private textures: WebGLTexture[]; // PathTracer ping-pong
@@ -39,7 +47,8 @@ export class PathTracer extends CanvasAnimation {
   /* PathTracer Info */
   private sampleCount: number;
   private pingpong: number = 0;
-  private pathTrace : boolean;
+  private mode = 0;
+  private NUM_MODES = 4;
 
   /* Global Rendering Info */
   private lightPosition: Vec4;
@@ -54,7 +63,7 @@ export class PathTracer extends CanvasAnimation {
   
   constructor(canvas: HTMLCanvasElement) {
     super(canvas);
-    this.pathTrace = true;
+    this.mode = 0;
     this.canvas2d = document.getElementById("textCanvas") as HTMLCanvasElement;
   
     this.ctx = Debugger.makeDebugContext(this.ctx);
@@ -65,7 +74,8 @@ export class PathTracer extends CanvasAnimation {
     
     // Generate initial landscape
     this.chunk = new Chunk(0.0, 0.0, 64);
-    this.framebuffer = gl.createFramebuffer();
+    this.framebuffer_pt = gl.createFramebuffer();
+    this.framebuffer_restir = gl.createFramebuffer();
 
     const type = gl.getExtension('OES_texture_float') ? gl.FLOAT : gl.UNSIGNED_BYTE;
 
@@ -90,14 +100,33 @@ export class PathTracer extends CanvasAnimation {
     this.pathTracerRenderPass = new RenderPass(gl, pathTracerVSText, pathTracerFSText);
     this.initPathTracer();
 
+    this.risRenderPass = new RenderPass(gl, pathTracerVSText, risFSText);
+    this.initNativeRenderPass(this.risRenderPass);
+
+    this.reSTIRInitRenderPass = new RenderPass(gl, pathTracerVSText, ReSTIR_initialPassFSText);
+    this.initNativeRenderPass(this.reSTIRInitRenderPass);
+
     this.initialPassRenderPass = new RenderPass(gl, pathTracerVSText, initialPassFSText);
-    this.initInitialPass();
+    this.initNativeRenderPass(this.initialPassRenderPass);
 
     this.spatialRenderPass = new RenderPass(gl, pathTracerVSText, spatialReuseFSText);
     this.initSpatialRestir();
 
     this.lightPosition = new Vec4([-1000, 1000, -1000, 1]);
     this.backgroundColor = new Vec4([0.0, 0.37254903, 0.37254903, 1.0]);    
+  }
+
+  public swapMode() {
+    this.mode = (this.mode+1) % this.NUM_MODES;
+    if (this.mode == 0) {
+      console.log("Switched mode to path tracer");
+    } else if (this.mode == 1) {
+      console.log("Switched mode to RIS");
+    } else if (this.mode == 2) {
+      console.log("Switched mode to ReSTIR");
+    } else if (this.mode == 3) {
+      console.log("Switched mode to ReSTIR PT (Chained GRIS)");
+    }
   }
 
   private initTexture(texture: WebGLTexture, type) {
@@ -185,7 +214,8 @@ export class PathTracer extends CanvasAnimation {
         });
     renderPass.addUniform("uTime",
         (gl: WebGLRenderingContext, loc: WebGLUniformLocation) => {
-          gl.uniform1f(loc, performance.now() * 0.001);
+          const timeSinceStart = (performance.now() - this.startTime) * 0.001; // seconds since start
+          gl.uniform1f(loc, timeSinceStart);
         });
     renderPass.addUniform("uTextureWeight",
         (gl: WebGLRenderingContext, loc: WebGLUniformLocation) => {
@@ -211,16 +241,14 @@ export class PathTracer extends CanvasAnimation {
     this.pathTracerRenderPass.setup();
   }
 
-  private getTextureWeight(): number {
-    return this.sampleCount / (this.sampleCount + 1);
+  private initNativeRenderPass(renderPass: RenderPass): void {
+    const num_indices = this.initRayRenderPass(renderPass);
+    renderPass.setDrawData(this.ctx.TRIANGLES, num_indices, this.ctx.UNSIGNED_SHORT, 0);
+    renderPass.setup();
   }
 
-  private initInitialPass(): void {
-    const num_indices = this.initRayRenderPass(this.initialPassRenderPass);
-    // Output to 3 framebuffer attachments (reservoirs)
-    this.initialPassRenderPass.setDrawData(this.ctx.TRIANGLES, num_indices, this.ctx.UNSIGNED_SHORT, 0);
-    this.initialPassRenderPass.setup();
-
+  private getTextureWeight(): number {
+    return this.sampleCount / (this.sampleCount + 1);
   }
 
   private initSpatialRestir(): void {
@@ -289,18 +317,7 @@ export class PathTracer extends CanvasAnimation {
     gl.frontFace(gl.CCW);
     gl.cullFace(gl.BACK);
 
-    const writeIndex = 1 - this.pingpong;
 
-    gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.textures[writeIndex], 0);
-
-    this.drawScene(0, 0, 1280, 960);
-
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-
-    // 6. Swap textures (ping-pong)
-    this.pingpong = writeIndex;
-    this.sampleCount++;
 
     this.drawScene(0, 0, 1280, 960);
   }
@@ -309,13 +326,27 @@ export class PathTracer extends CanvasAnimation {
     const gl: WebGL2RenderingContext = this.ctx;
     gl.viewport(x, y, width, height);
 
-    if (this.pathTrace) {
+    if (this.mode == 0) {
       // PathTracer Render
+      const writeIndex = 1 - this.pingpong;
+
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer_pt);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.textures[writeIndex], 0);
       gl.bindTexture(gl.TEXTURE_2D, this.textures[0]);
       this.pathTracerRenderPass.draw();
+      // 6. Swap textures (ping-pong)
+      this.pingpong = writeIndex;
+      this.sampleCount++;
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      this.pathTracerRenderPass.draw();
+
+    } else if (this.mode == 1) {
+      this.risRenderPass.draw();
+    } else if (this.mode == 2) {
+      this.reSTIRInitRenderPass.draw();
     } else {
       // ReSTIR Render
-      gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer_restir);
       gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.reservoirTextures[0], 0);
       gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, this.reservoirTextures[1], 0);
       gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT2, gl.TEXTURE_2D, this.reservoirTextures[2], 0);
@@ -325,6 +356,7 @@ export class PathTracer extends CanvasAnimation {
         gl.COLOR_ATTACHMENT2
       ]);
       this.initialPassRenderPass.draw();
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
       this.spatialRenderPass.draw();
       // this.swapReservoirTextures();
     }

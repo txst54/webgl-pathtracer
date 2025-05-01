@@ -79,7 +79,7 @@ function resolveMacros(source, macroMap, file) {
 
 // Format a TypeScript export
 function makeExport(name, type, source) {
-    return `export const ${name}${type}Text = \`\n${source}\n\`;`;
+    return `export const ${name}${type}Text = \n\`${source}\n\`;`;
 }
 
 // Main generation logic

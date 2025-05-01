@@ -28,5 +28,5 @@ float infinity = 10000.0;
 float epsilon = 0.0001;
 float lightSize = 0.1;
 float pi = 3.14159265359;
-float maxBounces = 100;
+float maxBounces = 100.0;
 // end_macro

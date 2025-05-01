@@ -1,6 +1,7 @@
-attribute vec2 aVertPos;
+#version 300 es
+in vec2 aVertPos;
 uniform vec3 uEye, uRay00, uRay01, uRay10, uRay11;
-varying vec3 initialRay;
+out vec3 initialRay;
 
 void main() {
     vec2 percent = aVertPos.xy * 0.5 + 0.5;
