@@ -11,7 +11,7 @@ uniform sampler2D motionVectorTexture;      // Stores motion vectors for tempora
 
 layout(location = 0) out vec4 out_ReservoirData1; // e.g., path_pos.xyz, path_dir.x
 layout(location = 1) out vec4 out_ReservoirData2; // e.g., path_dir.yzw, hat_p
-layout(location = 2) out vec4 out_ReservoirWeights; // e.g., W_Y, M_r, ...
+layout(location = 2) out vec4 out_ReservoirData3; // e.g., W_Y, M_r, ...
 
 // use_macro{CONSTANTS}
 
