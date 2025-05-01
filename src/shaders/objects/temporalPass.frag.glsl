@@ -155,16 +155,39 @@ Reservoir tracePath(vec3 ray, vec3 origin) {
     // -- Populate Reservoir --
     localReservoir.Y.rc_vertex.w = w;
     localReservoir.Y.rc_vertex.L = L;
-    // localReservoir.Y.epsilon_1 = 0.0; since there is only one candidate no need for epsilon_1
-    localReservoir.Y.epsilon_2 = random(initSeed + (bounce + 1) * 36.23);
+    localReservoir.Y.epsilon_1 = random(initSeed + (bounce + 1) * 36.23);
+    localReservoir.Y.epsilon_2 = random(initSeed + (bounce + 2) * 36.23);
     localReservoir.Y.k = bounce;
     localReservoir.Y.J = jacobian;
     localReservoir.W_Y = W;
-    // localReservoir.w_sum = 0.0; since there is only one candidate theres no need to store this
+    localReservoir.w_sum = W;
     localReservoir.c = 1.0;
     return localReservoir;
 }
 
 void main() {
+    Reservoir r = tracePath(initialRay, uEye);
+    // Pack rc_vertex.w and rc_vertex.L into one vec4
+    out_ReservoirData1 = vec4(
+    r.Y.rc_vertex.w,
+    r.Y.rc_vertex.L.r,
+    r.Y.rc_vertex.L.g,
+    r.Y.rc_vertex.L.b
+    );
 
+    // Pack epsilon_1, epsilon_2, k (as float), J into one vec4
+    out_ReservoirData2 = vec4(
+    r.Y.epsilon_1,
+    r.Y.epsilon_2,
+    float(r.Y.k),
+    r.Y.J
+    );
+
+    // Pack W_Y, w_sum, c, and 0.0 filler into one vec4
+    out_ReservoirData3 = vec4(
+    r.W_Y,
+    r.w_sum,
+    r.c,
+    r.t
+    );
 }

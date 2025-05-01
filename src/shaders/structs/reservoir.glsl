@@ -19,6 +19,7 @@ struct Reservoir {
     float W_Y;
     float w_sum;
     float c;
+    float t;
 };
 
 Reservoir initializeReservoir() {
