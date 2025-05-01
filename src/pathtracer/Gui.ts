@@ -1,6 +1,6 @@
 import { Camera } from "../lib/webglutils/Camera.js";
 import { CanvasAnimation } from "../lib/webglutils/CanvasAnimation.js";
-import { MinecraftAnimation } from "./App.js";
+import { PathTracer } from "./App.js";
 import { Mat4, Vec3, Vec4, Vec2, Mat2, Quat } from "../lib/TSM.js";
 import { RenderPass } from "../lib/webglutils/RenderPass.js";
 
@@ -35,7 +35,7 @@ export class GUI implements IGUI {
   private height: number;
   private width: number;
 
-  private animation: MinecraftAnimation;
+  private animation: PathTracer;
   
   private Adown: boolean;
   private Wdown: boolean;
@@ -47,7 +47,7 @@ export class GUI implements IGUI {
    * @param canvas required to get the width and height of the canvas
    * @param animation required as a back pointer for some of the controls
    */
-  constructor(canvas: HTMLCanvasElement, animation: MinecraftAnimation) {
+  constructor(canvas: HTMLCanvasElement, animation: PathTracer) {
     this.height = canvas.height;
     this.width = canvas.width;
     this.prevX = 0;

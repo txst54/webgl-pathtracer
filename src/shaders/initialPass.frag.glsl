@@ -20,42 +20,6 @@ layout(location = 2) out vec4 out_ReservoirData3; // e.g., W_Y, M_r, ...
 // use_macro{RAND_LIB}
 // use_macro{RAY_LIB}
 
-vec4 tracePath() {
-    // Simple scene: sphere at center
-    vec3 sphereCenter = vec3(0.0, 0.0, 0.0);
-    float sphereRadius = 1.0;
-
-    // for (int bounce = 0; bounce < 100; bounce++) {
-    vec2 tRoom = intersectCube(origin, ray, roomCubeMin, roomCubeMax);
-    float isect = intersectSphere(origin, ray, sphereCenter, sphereRadius);
-    float t = infinity;
-    if (tRoom.x < tRoom.y) t = tRoom.y;
-    if (isect < t) t = isect;
-
-    vec3 hit = origin + ray * t;
-    vec3 surfaceColor = vec3(0.75);
-    float specularHighlight = 0.0;
-    vec3 normal;
-
-    if (t == tRoom.y) {
-        normal = -normalForCube(hit, roomCubeMin, roomCubeMax);
-        if(hit.x < -9.9999) surfaceColor = vec3(0.1, 0.5, 1.0);
-        else if(hit.x > 9.9999) surfaceColor = vec3(1.0, 0.9, 0.1);
-        // ray = cosineWeightedDirection(uTime + float(bounce), normal);
-    } else if (t == infinity) {
-        // TODO return a default reservoir [weightage 0]
-    }
-    else {
-        normal = normalForSphere(hit, sphereCenter, sphereRadius);
-        // ray = cosineWeightedDirection(uTime + float(bounce), normal);
-    }
-    vec3 position = ray * t + origin;
-
-    Reservoir localReservoir = initializeReservoir();
-    // fill in code here
-    return vec4(localReservoir.x_it, localReservoir.sumWeight);
-}
-
 vec3 evaluateBSDF(vec3 incoming_dir, vec3 outgoing_dir, vec3 normal, vec3 albedo) {
     // Simple Lambertian model
     if (dot(incoming_dir, normal) < 0.0 || dot(outgoing_dir, normal) < 0.0) return vec3(0.0); // Should be on the same side
@@ -87,19 +51,6 @@ Reservoir tracePath(vec3 ray, vec3 origin) {
 
     float initSeed = ray.x * 85.63 + ray.y * 53.47 + ray.z * 25.93 + uTime * 49.69;
 
-    Reservoir initializeReservoir() {
-        Reservoir r;
-        r.Y.rc_vertex.w = 0.0;
-        r.Y.rc_vertex.L = vec3(0.0);
-        r.Y.epsilon_1 = 0.0;
-        r.Y.epsilon_2 = 0.0;
-        r.Y.k = 0;
-        r.Y.J = 0.0;
-        r.W_Y = 0.0;
-        r.w_sum = 0.0;
-        r.c = 0.0;
-        return r;
-    }
     int bounce = 0;
     for (bounce = 0; bounce < maxBounces; bounce++) {
         float currentSeed = initSeed + bounce * 36.23;
@@ -112,13 +63,11 @@ Reservoir tracePath(vec3 ray, vec3 origin) {
             break;
         }
 
-        // Update last vertex info for terminal NEE
         last_pos = isect.position;
         last_normal = isect.normal;
         last_dir_in = -ray;
         albedo = isect.albedo;
 
-        // Sample next direction
         vec3 new_dir = cosineWeightedDirection(currentSeed, isect.normal);
         float pdf = pdfCosineWeighted(new_dir, isect.normal);
 
@@ -155,8 +104,8 @@ Reservoir tracePath(vec3 ray, vec3 origin) {
     // -- Populate Reservoir --
     localReservoir.Y.rc_vertex.w = w;
     localReservoir.Y.rc_vertex.L = L;
-    localReservoir.Y.epsilon_1 = random(initSeed + (bounce + 1) * 36.23);
-    localReservoir.Y.epsilon_2 = random(initSeed + (bounce + 2) * 36.23);
+    localReservoir.Y.epsilon_1 = random(vec3(1.0), initSeed + (bounce + 1) * 36.23);
+    localReservoir.Y.epsilon_2 = random(vec3(1.0), initSeed + (bounce + 2) * 36.23);
     localReservoir.Y.k = bounce;
     localReservoir.Y.J = jacobian;
     localReservoir.W_Y = W;
@@ -167,27 +116,7 @@ Reservoir tracePath(vec3 ray, vec3 origin) {
 
 void main() {
     Reservoir r = tracePath(initialRay, uEye);
-    // Pack rc_vertex.w and rc_vertex.L into one vec4
-    out_ReservoirData1 = vec4(
-    r.Y.rc_vertex.w,
-    r.Y.rc_vertex.L.r,
-    r.Y.rc_vertex.L.g,
-    r.Y.rc_vertex.L.b
-    );
-
-    // Pack epsilon_1, epsilon_2, k (as float), J into one vec4
-    out_ReservoirData2 = vec4(
-    r.Y.epsilon_1,
-    r.Y.epsilon_2,
-    float(r.Y.k),
-    r.Y.J
-    );
-
-    // Pack W_Y, w_sum, c, and 0.0 filler into one vec4
-    out_ReservoirData3 = vec4(
-    r.W_Y,
-    r.w_sum,
-    r.c,
-    r.t
-    );
+    out_ReservoirData1 = packReservoir1(r);
+    out_ReservoirData2 = packReservoir2(r);
+    out_ReservoirData3 = packReservoir3(r);
 }

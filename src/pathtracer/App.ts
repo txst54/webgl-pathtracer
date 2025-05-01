@@ -7,8 +7,8 @@ import { GUI } from "./Gui.js";
 import {
   pathTracerVSText,
   pathTracerFSText,
-  spatialReuseVSText,
-    spatialReuseFSText
+  initialPassFSText,
+  spatialReuseFSText
 } from "./Shaders.js";
 import { Mat4, Vec4, Vec3 } from "../lib/TSM.js";
 import { RenderPass } from "../lib/webglutils/RenderPass.js";
@@ -16,24 +16,29 @@ import { Camera } from "../lib/webglutils/Camera.js";
 import { Cube } from "./Cube.js";
 import { Chunk } from "./Chunk.js";
 
-export class MinecraftAnimation extends CanvasAnimation {
+export class PathTracer extends CanvasAnimation {
   private gui: GUI;
   
   chunk : Chunk;
   
-  /*  Cube Rendering */
-  private cubeGeometry: Cube;
+  /*  Rendering */
+  // PathTracer
   private pathTracerRenderPass: RenderPass;
+
+  // ReSTIR
+  private initialPassRenderPass: RenderPass;
   private spatialRenderPass: RenderPass;
-  private textures: WebGLTexture[];
-  private sampleCount: number;
+
   private framebuffer: WebGLFramebuffer;
   private cachedCameraRays: { ray00: Vec3, ray01: Vec3, ray10: Vec3, ray11: Vec3 };
+
+  private textures: WebGLTexture[]; // PathTracer ping-pong
+  private reservoirTextures: WebGLTexture[]; // ReSTIR
+  private NUM_RESERVOIR_TEXTURES: number = 3;
+
+  /* PathTracer Info */
+  private sampleCount: number;
   private pingpong: number = 0;
-  private reservoirSampleTexPrev: WebGLTexture;
-  private reservoirMetaTexPrev: WebGLTexture;
-  private reservoirSampleTexNext: WebGLTexture;
-  private reservoirMetaTexNext: WebGLTexture;
   private pathTrace : boolean;
 
   /* Global Rendering Info */
@@ -63,29 +68,44 @@ export class MinecraftAnimation extends CanvasAnimation {
     this.framebuffer = gl.createFramebuffer();
 
     const type = gl.getExtension('OES_texture_float') ? gl.FLOAT : gl.UNSIGNED_BYTE;
+
+    // Initialize ping-pong textures
     this.textures = [];
     for(let i = 0; i < 2; i++) {
       this.textures.push(gl.createTexture());
-      gl.bindTexture(gl.TEXTURE_2D, this.textures[i]);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, this.canvas2d.width, this.canvas2d.height, 0, gl.RGB, type, null);
+      this.initTexture(this.textures[i], type);
     }
+
+    // Initialize reservoir textures
+    this.reservoirTextures = [];
+    for (let i = 0; i < this.NUM_RESERVOIR_TEXTURES; i++) {
+      this.reservoirTextures.push(gl.createTexture());
+      this.initTexture(this.reservoirTextures[i], type);
+    }
+
     gl.bindTexture(gl.TEXTURE_2D, null);
     this.sampleCount = 0;
     this.updateCameraRays();
-    this.reservoirSampleTexPrev = gl.createTexture();
-    this.reservoirMetaTexPrev = gl.createTexture();
-    this.reservoirSampleTexNext = gl.createTexture();
-    this.reservoirMetaTexNext = gl.createTexture();
 
     this.pathTracerRenderPass = new RenderPass(gl, pathTracerVSText, pathTracerFSText);
     this.initPathTracer();
-    this.spatialRenderPass = new RenderPass(gl, spatialReuseVSText, spatialReuseFSText);
+
+    this.initialPassRenderPass = new RenderPass(gl, pathTracerVSText, initialPassFSText);
+    this.initInitialPass();
+
+    this.spatialRenderPass = new RenderPass(gl, pathTracerVSText, spatialReuseFSText);
     this.initSpatialRestir();
 
     this.lightPosition = new Vec4([-1000, 1000, -1000, 1]);
     this.backgroundColor = new Vec4([0.0, 0.37254903, 0.37254903, 1.0]);    
+  }
+
+  private initTexture(texture: WebGLTexture, type) {
+    const gl = this.ctx;
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, this.canvas2d.width, this.canvas2d.height, 0, gl.RGB, type, null);
   }
 
   /**
@@ -121,11 +141,8 @@ export class MinecraftAnimation extends CanvasAnimation {
   private getCameraRays(): {ray00: Vec3, ray01: Vec3, ray10: Vec3, ray11: Vec3} {
     return this.cachedCameraRays;
   }
-  
-  /**
-   * Sets up the blank cube drawing
-   */
-  private initPathTracer(): void {
+
+  private initRayRenderPass(renderPass: RenderPass): number {
     const quadVertices = new Float32Array([
       -1, -1,
       -1, 1,
@@ -136,55 +153,61 @@ export class MinecraftAnimation extends CanvasAnimation {
       0, 2, 1,   // first triangle
       2, 3, 1    // second triangle
     ]);
-    const gl = this.ctx;
-    this.pathTracerRenderPass.setIndexBufferData(indices);
-    this.pathTracerRenderPass.addAttribute("aVertPos",
-      2,
-      this.ctx.FLOAT,
-      false,
-      2 * Float32Array.BYTES_PER_ELEMENT,
-      0,
-      undefined,
-      quadVertices
+    renderPass.setIndexBufferData(indices);
+    renderPass.addAttribute("aVertPos",
+        2,
+        this.ctx.FLOAT,
+        false,
+        2 * Float32Array.BYTES_PER_ELEMENT,
+        0,
+        undefined,
+        quadVertices
     );
-    this.pathTracerRenderPass.addUniform("uEye",
+    renderPass.addUniform("uEye",
         (gl: WebGLRenderingContext, loc: WebGLUniformLocation) => {
           gl.uniform3fv(loc, this.gui.getCamera().pos().xyz);
         });
-    this.pathTracerRenderPass.addUniform("uRay00",
+    renderPass.addUniform("uRay00",
         (gl: WebGLRenderingContext, loc: WebGLUniformLocation) => {
           gl.uniform3fv(loc, this.getCameraRays().ray00.xyz);
         });
-    this.pathTracerRenderPass.addUniform("uRay01",
+    renderPass.addUniform("uRay01",
         (gl: WebGLRenderingContext, loc: WebGLUniformLocation) => {
           gl.uniform3fv(loc, this.getCameraRays().ray01.xyz);
         });
-    this.pathTracerRenderPass.addUniform("uRay10",
+    renderPass.addUniform("uRay10",
         (gl: WebGLRenderingContext, loc: WebGLUniformLocation) => {
           gl.uniform3fv(loc, this.getCameraRays().ray10.xyz);
         });
-    this.pathTracerRenderPass.addUniform("uRay11",
+    renderPass.addUniform("uRay11",
         (gl: WebGLRenderingContext, loc: WebGLUniformLocation) => {
           gl.uniform3fv(loc, this.getCameraRays().ray11.xyz);
         });
-    this.pathTracerRenderPass.addUniform("uTime",
+    renderPass.addUniform("uTime",
         (gl: WebGLRenderingContext, loc: WebGLUniformLocation) => {
           gl.uniform1f(loc, performance.now() * 0.001);
         });
-    this.pathTracerRenderPass.addUniform("uTextureWeight",
+    renderPass.addUniform("uTextureWeight",
         (gl: WebGLRenderingContext, loc: WebGLUniformLocation) => {
           gl.uniform1f(loc, this.getTextureWeight());
         });
+    renderPass.addUniform("uRes", (gl, loc) => {
+      gl.uniform2f(loc, this.canvas2d.width, this.canvas2d.height);
+    });
+    return indices.length;
+  }
+  
+  /**
+   * Sets up the blank cube drawing
+   */
+  private initPathTracer(): void {
+    const num_indices = this.initRayRenderPass(this.pathTracerRenderPass);
     this.pathTracerRenderPass.addUniform("uTexture", (gl, loc) => {
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, this.getTexture());
       gl.uniform1i(loc, 0);
     });
-    this.pathTracerRenderPass.addUniform("uRes", (gl, loc) => {
-      gl.uniform2f(loc, this.canvas2d.width, this.canvas2d.height);
-    })
-
-    this.pathTracerRenderPass.setDrawData(this.ctx.TRIANGLES, indices.length, this.ctx.UNSIGNED_SHORT, 0);
+    this.pathTracerRenderPass.setDrawData(this.ctx.TRIANGLES, num_indices, this.ctx.UNSIGNED_SHORT, 0);
     this.pathTracerRenderPass.setup();
   }
 
@@ -192,53 +215,36 @@ export class MinecraftAnimation extends CanvasAnimation {
     return this.sampleCount / (this.sampleCount + 1);
   }
 
-  private setupTexture(tex, internalFormat) {
-    const gl = this.ctx;
-    gl.bindTexture(gl.TEXTURE_2D, tex);
-    gl.texImage2D(gl.TEXTURE_2D, 0, internalFormat, this.canvas2d.width, this.canvas2d.height, 0,
-        gl.RGBA, gl.FLOAT, null);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  private initInitialPass(): void {
+    const num_indices = this.initRayRenderPass(this.initialPassRenderPass);
+    // Output to 3 framebuffer attachments (reservoirs)
+    this.initialPassRenderPass.setDrawData(this.ctx.TRIANGLES, num_indices, this.ctx.UNSIGNED_SHORT, 0);
+    this.initialPassRenderPass.setup();
+
   }
 
   private initSpatialRestir(): void {
-    this.spatialRenderPass.addUniform("uRes", (gl, loc) => {
-      gl.uniform2f(loc, this.canvas2d.width, this.canvas2d.height);
-    });
-
-    this.pathTracerRenderPass.addUniform("uTime",
-      (gl: WebGLRenderingContext, loc: WebGLUniformLocation) => {
-        gl.uniform1f(loc, performance.now() * 0.001);
-      });
-
-
-    const gl = this.ctx;
-    const framebuffer = gl.createFramebuffer();
-    gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
-
-
-    const attachments = [gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1];
-
-    this.setupTexture(this.reservoirSampleTexNext, gl.RGBA32F);
-    this.setupTexture(this.reservoirMetaTexNext, gl.RGBA32F);
-
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.reservoirSampleTexNext, 0);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, this.reservoirMetaTexNext, 0);
-    gl.drawBuffers(attachments);
-
-    this.spatialRenderPass.addUniform("uReservoirSampleTex", (gl, loc) => {
+    const num_indices = this.initRayRenderPass(this.spatialRenderPass);
+    this.spatialRenderPass.addUniform("uReservoirData0", (gl, loc) => {
       gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, this.reservoirSampleTexPrev);
+      gl.bindTexture(gl.TEXTURE_2D, this.reservoirTextures[0]);
       gl.uniform1i(loc, 0);
     });
-
-    this.spatialRenderPass.addUniform("uReservoirMetaTex", (gl, loc) => {
+    this.spatialRenderPass.addUniform("uReservoirData1", (gl, loc) => {
       gl.activeTexture(gl.TEXTURE1);
-      gl.bindTexture(gl.TEXTURE_2D, this.reservoirMetaTexPrev);
+      gl.bindTexture(gl.TEXTURE_2D, this.reservoirTextures[1]);
       gl.uniform1i(loc, 1);
     });
+    this.spatialRenderPass.addUniform("uReservoirData2", (gl, loc) => {
+      gl.activeTexture(gl.TEXTURE2);
+      gl.bindTexture(gl.TEXTURE_2D, this.reservoirTextures[2]);
+      gl.uniform1i(loc, 2);
+    });
+    this.spatialRenderPass.setDrawData(this.ctx.TRIANGLES, num_indices, this.ctx.UNSIGNED_SHORT, 0);
+    this.spatialRenderPass.setup();
   }
 
+  /*
   private swapReservoirTextures() {
     [
       this.reservoirSampleTexPrev,
@@ -255,7 +261,7 @@ export class MinecraftAnimation extends CanvasAnimation {
       this.reservoirMetaTexNext,
       this.reservoirMetaTexPrev
     ];
-  }
+  } */
 
   private getTexture() {
     return this.textures[this.pingpong];
@@ -300,17 +306,27 @@ export class MinecraftAnimation extends CanvasAnimation {
   }
 
   private drawScene(x: number, y: number, width: number, height: number): void {
-    const gl: WebGLRenderingContext = this.ctx;
+    const gl: WebGL2RenderingContext = this.ctx;
     gl.viewport(x, y, width, height);
 
-    //TODO: Render multiple chunks around the player, using Perlin noise shaders
-    // gl.bindTexture(gl.TEXTURE_2D, this.textures[0]);
     if (this.pathTrace) {
+      // PathTracer Render
+      gl.bindTexture(gl.TEXTURE_2D, this.textures[0]);
       this.pathTracerRenderPass.draw();
     } else {
-      // do the temporal and 1 ray path trace here
+      // ReSTIR Render
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.reservoirTextures[0], 0);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, this.reservoirTextures[1], 0);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT2, gl.TEXTURE_2D, this.reservoirTextures[2], 0);
+      gl.drawBuffers([
+        gl.COLOR_ATTACHMENT0,
+        gl.COLOR_ATTACHMENT1,
+        gl.COLOR_ATTACHMENT2
+      ]);
+      this.initialPassRenderPass.draw();
       this.spatialRenderPass.draw();
-      this.swapReservoirTextures();
+      // this.swapReservoirTextures();
     }
 
   }
@@ -332,6 +348,6 @@ export function initializeCanvas(): void {
       (document.createElement('canvas').getContext('webgl') && 'WebGL 1.0') ||
       'WebGL not supported');
   /* Start drawing */
-  const canvasAnimation: MinecraftAnimation = new MinecraftAnimation(canvas);
+  const canvasAnimation: PathTracer = new PathTracer(canvas);
   canvasAnimation.start();  
 }

@@ -36,4 +36,46 @@ Reservoir initializeReservoir() {
     return r;
 }
 
+Reservoir unpackReservoir(vec4 uReservoirData1Vec, vec4 uReservoirData2Vec, vec4 uReservoirData3Vec) {
+    Reservoir r;
+    r.Y.rc_vertex.w = uReservoirData1Vec.r;
+    r.Y.rc_vertex.L = uReservoirData1Vec.gba;
+    r.Y.epsilon_1 = uReservoirData2Vec.r;
+    r.Y.epsilon_2 = uReservoirData2Vec.g;
+    r.Y.k = int(uReservoirData2Vec.b);
+    r.Y.J = uReservoirData2Vec.a;
+    r.W_Y = uReservoirData3Vec.r;
+    r.w_sum = uReservoirData3Vec.g;
+    r.c = uReservoirData3Vec.b;
+    r.t = uReservoirData3Vec.a;
+    return r;
+}
+
+vec4 packReservoir1(Reservoir r) {
+    return vec4(
+    r.Y.rc_vertex.w,
+    r.Y.rc_vertex.L.r,
+    r.Y.rc_vertex.L.g,
+    r.Y.rc_vertex.L.b
+    );
+}
+
+vec4 packReservoir2(Reservoir r) {
+    return vec4(
+    r.Y.epsilon_1,
+    r.Y.epsilon_2,
+    float(r.Y.k),
+    r.Y.J
+    );
+}
+
+vec4 packReservoir3(Reservoir r) {
+    return vec4(
+    r.W_Y,
+    r.w_sum,
+    r.c,
+    r.t
+    );
+}
+
 // end_macro
