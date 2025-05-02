@@ -145,6 +145,7 @@ export class PathTracer extends CanvasAnimation {
 
   public setMode(newMode: number) {
     this.mode = newMode % this.NUM_MODES;
+    console.log("Switched mode to " + this.mode);
   }
 
   private initTexture(texture: WebGLTexture, type) {

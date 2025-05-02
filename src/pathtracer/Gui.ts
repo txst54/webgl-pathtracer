@@ -193,15 +193,19 @@ export class GUI implements IGUI {
       }
       case "Digit1": {
         this.animation.setMode(0);
+        break;
       }
       case "Digit2": {
         this.animation.setMode(1);
+        break;
       }
       case "Digit3": {
         this.animation.setMode(2);
+        break;
       }
       case "Digit4": {
         this.animation.setMode(3);
+        break;
       }
       case "Space": {
         this.animation.jump();
