@@ -59,13 +59,14 @@ void main() {
     // Initialize for RIS
     vec3 selectedDirection;
     float sumWeights = 0.0;
+    float sumSamplingWeights = 0.0;
     float selectedPdf = 0.0;
     float selectedMisWeight = 0.0;
     bool sampleFound = false;
+    vec2 randUV = gl_FragCoord.xy / uRes;
 
     for (int i = 0; i < M1+M2; i++) {
         float seed = float(i) + uTime;
-        vec2 randUV = gl_FragCoord.xy / uRes;
 
         // Determine sampling technique (BSDF or light)
         bool fromLight = bool(i < M2);
@@ -78,7 +79,7 @@ void main() {
         if (fromLight) {
             // --- Sample from light source ---
             vec2 u = vec2(rand(randUV, seed), rand(randUV, seed + 1.0));
-            vec3 lightPos = sampleSphere(light, lightSize, u);
+            lightPos = sampleSphere(light, lightSize, u);
             lightDir = normalize(lightPos - hitPoint);
 
             if (dot(isect.normal, lightDir) <= 0.0) continue;
@@ -94,7 +95,6 @@ void main() {
             if (lightIsect.t < 0.0 || !lightIsect.isLight) continue;
 
             float lightDist = lightIsect.t;
-            vec3 lightPos = hitPoint + lightDir * lightDist;
         }
         float cosLight = max(dot(-lightDir, normalize(lightPos - light)), 0.0);
         float area = 4.0 * PI * lightSize * lightSize;
@@ -112,10 +112,11 @@ void main() {
 
         // Compute RIS weight - according to the paper:
         float w_i = m_i * p_hat / p1;
-        sumWeights += w_i;
+        sumWeights += p_hat / p1;
+        sumSamplingWeights += w_i;
 
         // Reservoir sampling
-        if (!sampleFound || rand(randUV, seed + 2.0) * sumWeights < w_i) {
+        if (!sampleFound || rand(randUV, seed + 2.0) * sumSamplingWeights < w_i) {
             selectedDirection = lightDir;
             selectedPdf = p_hat;
             selectedMisWeight = w_i;
@@ -135,8 +136,17 @@ void main() {
     float finalWeight = sumWeights / selectedPdf;
 
     // Compute lighting with the selected sample
-    vec3 finalLighting = (isect.albedo / pi) * max(dot(isect.normal, selectedDirection), 0.0);
+    // Compute light intensity
+    vec3 lightIntensity = vec3(1.0);  // or use your light's color/intensity here
+
+    // Geometry factor
+    float cosThetaLight = max(dot(-selectedDirection, light - hitPoint), 0.0);
+    float dist2 = dot(light - hitPoint, light - hitPoint);
+    float G = cosThetaLight / (dist2 + 1e-6);
+    vec3 incomingLight = lightIntensity * G;
+    vec3 brdf = isect.albedo / PI;
+    vec3 finalLighting = (isect.albedo / PI) * max(dot(isect.normal, selectedDirection), 0.0);
 
     // Final color
-    fragColor = vec4(finalLighting, 1.0);
+    fragColor = vec4(finalLighting * finalWeight, 1.0);
 }
