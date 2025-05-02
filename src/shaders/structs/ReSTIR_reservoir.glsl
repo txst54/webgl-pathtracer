@@ -4,6 +4,7 @@ struct ReSTIR_Reservoir {
     vec3 Y;      // light direction or position
     float W_Y;   // selected sample weight
     float w_sum; // total weight of all candidates
+    float c;    //sample count
 };
 
 ReSTIR_Reservoir initializeReservoir() {
@@ -11,6 +12,7 @@ ReSTIR_Reservoir initializeReservoir() {
     r.Y = vec3(0.0);
     r.W_Y = 0.0;
     r.w_sum = 0.0;
+
     return r;
 }
 
