@@ -31,7 +31,7 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
             break;
         }
         if (isect.isLight) {
-            accumulatedColor = vec3(1.0);
+            accumulatedColor = vec3(lightIntensity);
             break;
         }
 
@@ -42,7 +42,7 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
         float shadowIntensity = shadow(isect.position + isect.normal * epsilon, toLight, sphereCenter, sphereRadius);
 
         colorMask *= isect.albedo;
-        accumulatedColor += colorMask * (0.5 * diffuse * shadowIntensity);
+        accumulatedColor += colorMask * (lightIntensity * 0.5 * diffuse * shadowIntensity);
         origin = isect.position;
 
         if (bounce > num_iters) {

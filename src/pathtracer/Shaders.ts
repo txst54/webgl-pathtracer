@@ -23,7 +23,7 @@ vec3 light = vec3(0.0, 5.0, 0.0);
 float lightIntensity = 1.0;
 float infinity = 10000.0;
 float epsilon = 0.0001;
-float lightSize = 0.1;
+float lightSize = 1.0;
 float pi = 3.14159265359;
 float maxBounces = 100.0;vec2 intersectCube(vec3 origin, vec3 ray, vec3 cubeMin, vec3 cubeMax) {
     vec3 tMin = (cubeMin - origin) / ray;
@@ -352,7 +352,7 @@ vec3 light = vec3(0.0, 5.0, 0.0);
 float lightIntensity = 1.0;
 float infinity = 10000.0;
 float epsilon = 0.0001;
-float lightSize = 0.1;
+float lightSize = 1.0;
 float pi = 3.14159265359;
 float maxBounces = 100.0;float random(vec3 scale, float seed) {
     return fract(sin(dot(gl_FragCoord.xyz + seed, scale)) * 43758.5453 + seed);
@@ -490,7 +490,7 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
             break;
         }
         if (isect.isLight) {
-            accumulatedColor = vec3(1.0);
+            accumulatedColor = vec3(lightIntensity);
             break;
         }
 
@@ -501,7 +501,7 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
         float shadowIntensity = shadow(isect.position + isect.normal * epsilon, toLight, sphereCenter, sphereRadius);
 
         colorMask *= isect.albedo;
-        accumulatedColor += colorMask * (0.5 * diffuse * shadowIntensity);
+        accumulatedColor += colorMask * (lightIntensity * 0.5 * diffuse * shadowIntensity);
         origin = isect.position;
 
         if (bounce > num_iters) {
@@ -535,8 +535,8 @@ in vec3 initialRay;
 out vec4 fragColor;
 
 #define NUM_CANDIDATES 8
-#define M1 4 // num of bsdf sampled candidates
-#define M2 4 // num of light candidates
+#define M1 50 // num of bsdf sampled candidates
+#define M2 50 // num of light candidates
 #define PI 3.14159265359vec3 roomCubeMin = vec3(-10.0, -10.0, -10.0);
 vec3 roomCubeMax = vec3(10.0, 10.0, 10.0);
 vec3 sphereCenter = vec3(0.0, 0.0, 0.0);
@@ -545,7 +545,7 @@ vec3 light = vec3(0.0, 5.0, 0.0);
 float lightIntensity = 1.0;
 float infinity = 10000.0;
 float epsilon = 0.0001;
-float lightSize = 0.1;
+float lightSize = 1.0;
 float pi = 3.14159265359;
 float maxBounces = 100.0;float intersectSphere(vec3 origin, vec3 ray, vec3 sphereCenter, float sphereRadius) {
     vec3 toSphere = origin - sphereCenter;
@@ -752,7 +752,7 @@ float rand(vec2 co, float seed) {
 
 // Balance heuristic for MIS weights
 float balanceHeuristic(float pI, float pJ, float M_I, float M_J) {
-    return (M_I * pI) / (M_I * pI + M_J * pJ + 1e-6);
+    return (pI) / (M_I * pI + M_J * pJ + 1e-6);
 }
 
 // Sample point on sphere
@@ -789,10 +789,6 @@ void main() {
     float selectedMisWeight = 0.0;
     bool sampleFound = false;
 
-    // ------------------------
-    // Generate and evaluate all candidates
-    // ------------------------
-
     for (int i = 0; i < M1+M2; i++) {
         float seed = float(i) + uTime;
         vec2 randUV = gl_FragCoord.xy / uRes;
@@ -800,10 +796,10 @@ void main() {
         // Determine sampling technique (BSDF or light)
         bool fromLight = bool(i < M2);
 
+        float p1, p2, m1, m2;
+        vec3 lightPos;
         vec3 lightDir;
-        float p_light, p_bsdf;
-        float misWeight;
-        float targetPDF;
+        float lightDist;
 
         if (fromLight) {
             // --- Sample from light source ---
@@ -811,67 +807,44 @@ void main() {
             vec3 lightPos = sampleSphere(light, lightSize, u);
             lightDir = normalize(lightPos - hitPoint);
 
-            // Skip if behind surface
             if (dot(isect.normal, lightDir) <= 0.0) continue;
 
-            // Check visibility
-            float lightDist = length(lightPos - hitPoint);
+            lightDist = length(lightPos - hitPoint);
             Isect shadowIsect = intersect(lightDir, hitPoint + isect.normal * 0.001);
             if (shadowIsect.t > 0.0 && shadowIsect.t < lightDist - 0.01) continue;
-
-            // Compute PDFs for both techniques
-            float cosLight = max(dot(-lightDir, normalize(lightPos - light)), 0.0);
-            float area = 4.0 * PI * lightSize * lightSize;
-            p_light = (lightDist * lightDist) / (area * cosLight + 1e-6);
-            p_bsdf = pdfCosineWeighted(lightDir, isect.normal);
-
-            // Target function f = cos(theta) (assuming unit radiance)
-            targetPDF = max(dot(isect.normal, lightDir), 0.0);
-
-            // MIS weight using balance heuristic
-            misWeight = balanceHeuristic(p_light, p_bsdf, float(M2), float(M1));
-        }
-        else {
-            // --- Sample from BSDF ---
+        } else {
+            // BSDF
             lightDir = cosineWeightedDirection(seed, isect.normal);
 
-            // Trace ray and check if it hits a light
             Isect lightIsect = intersect(lightDir, hitPoint + isect.normal * 0.001);
             if (lightIsect.t < 0.0 || !lightIsect.isLight) continue;
 
-            // Compute light intersection details
             float lightDist = lightIsect.t;
             vec3 lightPos = hitPoint + lightDir * lightDist;
-
-            // Compute PDFs for both techniques
-            float cosLight = max(dot(-lightDir, normalize(lightPos - light)), 0.0);
-            float area = 4.0 * PI * lightSize * lightSize;
-            p_light = (lightDist * lightDist) / (area * cosLight + 1e-6);
-            p_bsdf = pdfCosineWeighted(lightDir, isect.normal);
-
-            // Target function f = cos(theta) (assuming unit radiance)
-            targetPDF = max(dot(isect.normal, lightDir), 0.0);
-
-            // MIS weight using balance heuristic
-            misWeight = balanceHeuristic(p_bsdf, p_light, float(M1), float(M2));
         }
+        float cosLight = max(dot(-lightDir, normalize(lightPos - light)), 0.0);
+        float area = 4.0 * PI * lightSize * lightSize;
+        float p_light = (lightDist * lightDist) / (area * cosLight + 1e-6);
+        float p_bsdf = pdfCosineWeighted(lightDir, isect.normal);
+        p1 = fromLight ? p_light : p_bsdf;
+        p2 = fromLight ? p_bsdf : p_light;
+        m1 = fromLight ? float(M2) : float(M1);
+        m2 = fromLight ? float(M1) : float(M2);
+        float m_i = balanceHeuristic(p1, p2, m1, m2);
+        float p_hat = max(dot(isect.normal, lightDir), 0.0);
 
         // Skip invalid samples
-        if (p_light <= 0.0 || p_bsdf <= 0.0 || targetPDF <= 0.0) continue;
+        if (p_light <= 0.0 || p_bsdf <= 0.0 || p_hat <= 0.0) continue;
 
         // Compute RIS weight - according to the paper:
-        // w_i = m_i(X_i) * p̂(X_i) / p(X_i)
-        float samplePdf = fromLight ? p_light : p_bsdf;
-        float risWeight = misWeight * targetPDF / samplePdf;
-
-        // Add to sum of weights for normalization
-        sumWeights += risWeight;
+        float w_i = m_i * p_hat / p1;
+        sumWeights += w_i;
 
         // Reservoir sampling
-        if (!sampleFound || rand(randUV, seed + 2.0) * sumWeights < risWeight) {
+        if (!sampleFound || rand(randUV, seed + 2.0) * sumWeights < w_i) {
             selectedDirection = lightDir;
-            selectedPdf = samplePdf;
-            selectedMisWeight = misWeight;
+            selectedPdf = p_hat;
+            selectedMisWeight = w_i;
             sampleFound = true;
         }
     }
@@ -882,20 +855,16 @@ void main() {
         return;
     }
 
-    // ------------------------
-    // Final estimation
-    // ------------------------
-
     // According to the paper: W_X = (1/p̂(X)) * (sum of all weights)
     // This is our unbiased contribution weight
     float M_total = float(M1 + M2);
-    float finalWeight = sumWeights / (M_total * selectedPdf);
+    float finalWeight = sumWeights / selectedPdf;
 
     // Compute lighting with the selected sample
-    vec3 finalLighting = isect.albedo * max(dot(isect.normal, selectedDirection), 0.0);
+    vec3 finalLighting = (isect.albedo / pi) * max(dot(isect.normal, selectedDirection), 0.0);
 
     // Final color
-    fragColor = vec4(finalLighting * finalWeight, 1.0);
+    fragColor = vec4(finalLighting, 1.0);
 }
 `;
 
@@ -918,7 +887,7 @@ vec3 light = vec3(0.0, 5.0, 0.0);
 float lightIntensity = 1.0;
 float infinity = 10000.0;
 float epsilon = 0.0001;
-float lightSize = 0.1;
+float lightSize = 1.0;
 float pi = 3.14159265359;
 float maxBounces = 100.0;float intersectSphere(vec3 origin, vec3 ray, vec3 sphereCenter, float sphereRadius) {
     vec3 toSphere = origin - sphereCenter;

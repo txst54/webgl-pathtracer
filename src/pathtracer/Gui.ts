@@ -66,7 +66,7 @@ export class GUI implements IGUI {
    */
   public reset(): void {
     this.camera = new Camera(
-      new Vec3([0, 0, -2]),
+      new Vec3([0, 0, -40]),
       new Vec3([0, 0, 1]),
       new Vec3([0, 1, 0]),
       45,

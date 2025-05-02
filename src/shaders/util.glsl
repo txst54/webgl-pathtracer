@@ -26,7 +26,7 @@ vec3 light = vec3(0.0, 5.0, 0.0);
 float lightIntensity = 1.0;
 float infinity = 10000.0;
 float epsilon = 0.0001;
-float lightSize = 0.1;
+float lightSize = 1.0;
 float pi = 3.14159265359;
 float maxBounces = 100.0;
 // end_macro
