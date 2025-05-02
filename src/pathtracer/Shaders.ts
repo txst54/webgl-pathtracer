@@ -878,7 +878,17 @@ vec3 uniformlyRandomDirection(float seed) {
 
 vec3 uniformlyRandomVector(float seed) {
     return uniformlyRandomDirection(seed) * sqrt(random(vec3(36.7539, 50.3658, 306.2759), seed));
-}
+}vec3 roomCubeMin = vec3(-10.0, -10.0, -10.0);
+vec3 roomCubeMax = vec3(10.0, 10.0, 10.0);
+vec3 sphereCenter = vec3(0.0, 0.0, 0.0);
+float sphereRadius = 1.0;
+vec3 light = vec3(0.0, 5.0, 0.0);
+float lightIntensity = 1.0;
+float infinity = 10000.0;
+float epsilon = 0.0001;
+float lightSize = 1.0;
+float pi = 3.14159265359;
+float maxBounces = 100.0;
 struct ReSTIR_Reservoir {
     vec3 Y;      // light direction or position
     float W_Y;   // selected sample weight
@@ -919,8 +929,6 @@ void main() {
     ReSTIR_Reservoir r = unpackReservoir(uReservoirData1Vec, uReservoirData2Vec);
     ReSTIR_Reservoir r_out = r;
     float new_w_sum = r_out.w_sum;
-    fragColor = vec4(r_out.Y * 1000.0, 1.0);
-    return;
 
     float randNum = random(vec3(1.0), gl_FragCoord.x * 29.57 + gl_FragCoord.y * 65.69 + uTime * 82.21);
     float M = 1.0;
@@ -949,7 +957,7 @@ void main() {
         }
     }
 
-    fragColor = vec4(r_out.Y * 1000.0, 1.0);
+    fragColor = vec4(r_out.Y * (r_out.W_Y <= epsilon ? 1.0 : r_out.W_Y), 1.0);
 }
 
 `;

@@ -143,12 +143,17 @@ export class PathTracer extends CanvasAnimation {
     }
   }
 
+  public setMode(newMode: number) {
+    this.mode = newMode % this.NUM_MODES;
+  }
+
   private initTexture(texture: WebGLTexture, type) {
     const gl = this.ctx;
     gl.bindTexture(gl.TEXTURE_2D, texture);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, this.canvas2d.width, this.canvas2d.height, 0, gl.RGB, type, null);
+    gl.getExtension('EXT_color_buffer_float'); // required for FLOAT render targets
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, this.canvas2d.width, this.canvas2d.height, 0, gl.RGBA, gl.FLOAT, null);
   }
 
   /**
@@ -268,7 +273,7 @@ export class PathTracer extends CanvasAnimation {
   private initSpatialReSTIR(renderPass, numTextures, textures): void {
     const num_indices = this.initRayRenderPass(renderPass);
     for (let i = 0; i < numTextures; i++) {
-      renderPass.addUniform(`uReservoirData${i}`, (gl, loc) => {
+      renderPass.addUniform(`uReservoirData${i+1}`, (gl, loc) => {
         gl.activeTexture(gl.TEXTURE0+i);
         gl.bindTexture(gl.TEXTURE_2D, textures[i]);
         gl.uniform1i(loc, i);
