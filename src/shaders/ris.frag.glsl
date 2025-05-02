@@ -27,7 +27,10 @@ void main() {
     float jitterSeed = uTime * 1234.5678;
     randUV += vec2(rand(randUV, jitterSeed), rand(randUV, jitterSeed + 1.0)) * 0.001;
     Isect isect = intersect(ray, origin);
-    ReSTIR_Reservoir r = resample(isect, randUV);
+    vec3[M] samples;
+    int count;
+    random_samples(samples, count, isect, randUV);
+    ReSTIR_Reservoir r = resample(samples, count, isect, randUV);
     vec3 lightDir = normalize(r.Y - isect.position);
     if (isect.isLight) {
         fragColor = vec4(ReSTIR_lightEmission, 1.0);

@@ -1,5 +1,4 @@
 //begin_macro{RIS_UTIL}
-
 float rand(vec2 co, float seed) {
     return fract(sin(dot(co.xy + seed, vec2(12.9898, 78.233))) * 43758.5453);
 }
@@ -65,63 +64,62 @@ float compute_p_hat(vec3 a, vec3 b, vec3 normal, vec3 albedo) {
     return length(contrib);
 }
 
-ReSTIR_Reservoir resample(Isect isect, vec2 randUV) {
+void random_samples(out vec3[M] samples, out int count, Isect isect, vec2 randUV) {
+    count = 0;
+    for (int i = 0; i < M; i++) {
+        float seed1 = float(i) * 0.1 + uTime * 0.5;
+        float seed2 = float(i) * 0.2 + uTime * 0.7;
+        vec2 u = vec2(rand(randUV, seed1), rand(randUV, seed2));
+
+        vec3 lightPos = sampleSphere(light, lightSize, u);
+        vec3 lightDir = normalize(lightPos - isect.position);
+
+        if (dot(isect.normal, lightDir) <= 0.0 || !isVisible(isect.position, lightPos)) continue;
+
+        if (count < M) {
+            samples[count] = lightPos;
+            count++;
+        }
+    }
+}
+
+
+ReSTIR_Reservoir resample(vec3[M] samples, int count, Isect isect, vec2 randUV) {
     ReSTIR_Reservoir r = initializeReservoir();
     if (isect.isLight) {
         r.Y = ReSTIR_lightEmission; // Increased light emission value
         return r;
     }
 
-    vec3 samples[M];
-    float p_hatx[M];
-    float p_x[M];
-    float weights[M];
-    int numSamples = 0;
-
-    // Generate candidates
-    for (int i = 0; i < M; i++) {
-        // Generate different random values for each sample
-        float seed1 = float(i) * 0.1 + uTime * 0.5;
-        float seed2 = float(i) * 0.2 + uTime * 0.7;
-        vec2 u = vec2(rand(randUV, seed1), rand(randUV, seed2));
-
-        // Sample point on light
-        vec3 lightPos = sampleSphere(light, lightSize, u);
-        vec3 lightDir = normalize(lightPos - isect.position);
-
-        // Skip samples that are not visible or facing away
-        if (dot(isect.normal, lightDir) <= 0.0 || !isVisible(isect.position, lightPos)) continue;
-
-        float p_light = compute_p(isect.position, lightPos);
-        float p_hat = compute_p_hat(isect.position, lightPos, isect.normal, isect.albedo);
-
-        if (p_hat <= 0.0) continue;
-
-        // Store the candidate
-        samples[numSamples] = lightPos;
-        p_hatx[numSamples] = p_hat;
-        p_x[numSamples] = p_light;
-
-        // Calculate weight for RIS
-        weights[numSamples] = p_hat / p_light;
-        numSamples++;
-    }
-
     // No valid samples found
-    if (numSamples == 0) {
+    if (count == 0) {
         r.Y = vec3(0.0);
         return r;
     }
 
-    for (int i = 0; i < numSamples; i++) {
-        weights[i] /= float(numSamples);
+    float p_hatx[M];
+    float p_x[M];
+    float weights[M];
+
+    for (int i = 0; i < M; i++) {
+        if (i >= count) {
+            break;
+        }
+        float p_light = compute_p(isect.position, samples[i]);
+        float p_hat = compute_p_hat(isect.position, samples[i], isect.normal, isect.albedo);
+        weights[i] = p_hat / p_light / float(count);
+        p_hatx[i] = p_hat;
+        p_x[i] = p_light;
         r.w_sum += weights[i];
     }
 
     float randint = rand(randUV, uTime + 123.456);
     int selectedIdx = 0;
 
-    for (int i = 0; i < numSamples; i++) {
+    for (int i = 0; i < M; i++) {
+        if (i >= count) {
+            break;
+        }
         randint = randint - weights[i]/r.w_sum;
         if (randint <= 0.0) {
             selectedIdx = i;
