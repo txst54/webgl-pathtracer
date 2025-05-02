@@ -134,17 +134,6 @@ void main() {
     // This is our unbiased contribution weight
     float M_total = float(M1 + M2);
     float finalWeight = sumWeights / selectedPdf;
-
-    // Compute lighting with the selected sample
-    // Compute light intensity
-    vec3 lightIntensity = vec3(1.0);  // or use your light's color/intensity here
-
-    // Geometry factor
-    float cosThetaLight = max(dot(-selectedDirection, light - hitPoint), 0.0);
-    float dist2 = dot(light - hitPoint, light - hitPoint);
-    float G = cosThetaLight / (dist2 + 1e-6);
-    vec3 incomingLight = lightIntensity * G;
-    vec3 brdf = isect.albedo / PI;
     vec3 finalLighting = (isect.albedo / PI) * max(dot(isect.normal, selectedDirection), 0.0);
 
     // Final color
