@@ -33,15 +33,11 @@ void main() {
         fragColor = vec4(ReSTIR_lightEmission, 1.0);
         return;
     }
-    if (isect.t < 0.0) {
-        fragColor = vec4(vec3(0.0), 1.0);
-        return;
-    }
 
     float cosTheta = max(dot(isect.normal, lightDir), 0.0);
     vec3 brdf = isect.albedo / pi;
     // vec3 finalColor = brdf * cosTheta;
     vec3 finalColor = (brdf * ReSTIR_lightEmission * cosTheta) * r.W_Y;
 
-    fragColor = vec4(vec3(r.W_Y * 1000000.0), 1.0);
+    fragColor = vec4(finalColor * r.W_Y, 1.0);
 }

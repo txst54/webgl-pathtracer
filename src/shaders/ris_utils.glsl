@@ -1,4 +1,5 @@
 //begin_macro{RIS_UTIL}
+
 float rand(vec2 co, float seed) {
     return fract(sin(dot(co.xy + seed, vec2(12.9898, 78.233))) * 43758.5453);
 }
@@ -54,13 +55,14 @@ float compute_p(vec3 a, vec3 b) {
 
 float compute_p_hat(vec3 a, vec3 b, vec3 normal, vec3 albedo) {
     // computes the light contribution p_hat of a ray from the light position 'b' to the object pos 'a'
-    vec3 dir = normalize(b - a);
-    float cosTheta = max(0.0, dot(-dir, normalize(b - light)));
-    float dist2 = length(b - a);
+    vec3 lightDir = normalize(b - a);
+    float dist2 = dot(b - a, b - a);
 
-    // BRDF evaluation
-    vec3 f = (albedo / pi) * max(dot(normal, dir), 0.0);
-    return length(f * ReSTIR_lightEmission * cosTheta); // Use luminance as target PDF
+    float cosTheta = max(dot(normal, lightDir), 0.0);
+    vec3 f_r = albedo / pi;
+
+    vec3 contrib = f_r * ReSTIR_lightEmission * cosTheta / dist2;
+    return length(contrib);
 }
 
 ReSTIR_Reservoir resample(Isect isect, vec2 randUV) {
@@ -106,7 +108,7 @@ ReSTIR_Reservoir resample(Isect isect, vec2 randUV) {
     }
 
     // No valid samples found
-    if (numSamples == 0 || r.w_sum <= 0.0) {
+    if (numSamples == 0) {
         r.Y = vec3(0.0);
         return r;
     }

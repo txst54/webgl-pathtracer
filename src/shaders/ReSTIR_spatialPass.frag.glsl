@@ -9,6 +9,8 @@ out vec4 fragColor;
 uniform sampler2D uReservoirData1;
 uniform sampler2D uReservoirData2;
 
+#define M 10
+
 // use_macro{RAND_LIB}
 // use_macro{CONSTANTS}
 // use_macro{SPHERE_LIB}
@@ -35,7 +37,6 @@ void main() {
     float new_w_sum = r_out.w_sum;
 
     float randNum = random(vec3(1.0), gl_FragCoord.x * 29.57 + gl_FragCoord.y * 65.69 + uTime * 82.21);
-    float M = 1.0;
     for (int dx = -2; dx <= 2; ++dx) {
         for (int dy = -2; dy <= 2; ++dy) {
             vec2 neighbor = gl_FragCoord.xy + vec2(dx, dy);
