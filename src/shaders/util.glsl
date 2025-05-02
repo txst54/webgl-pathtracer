@@ -29,4 +29,5 @@ float epsilon = 0.0001;
 float lightSize = 1.0;
 float pi = 3.14159265359;
 float maxBounces = 100.0;
+vec3 ReSTIR_lightEmission = vec3(50.0); // Light intensity/color
 // end_macro
