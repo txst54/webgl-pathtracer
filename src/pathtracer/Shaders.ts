@@ -481,9 +481,9 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
     vec3 colorMask = vec3(1.0);
     vec3 accumulatedColor = vec3(0.0);
 
-    float roulette = random(vec3(1.0), ray.x * 11.87 + ray.y * 78.77 + ray.z * 26.63 + uTime * 51.79);
+    float roulette = random(vec3(1.0), dot(gl_FragCoord.xy, vec2(12.9898, 78.233)) + uTime * 51.79);
     int num_iters = int(ceil(log(1.0 - roulette) / log(0.9)));
-
+    float total_dist = 0.0;
     for (int bounce = 0; bounce < 100; bounce++) {
         Isect isect = intersect(ray, origin);
         if (isect.t == infinity) {
@@ -501,7 +501,7 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
         float shadowIntensity = shadow(isect.position + isect.normal * epsilon, toLight, sphereCenter, sphereRadius);
 
         colorMask *= isect.albedo;
-        accumulatedColor += colorMask * (lightIntensity * 0.5 * diffuse * shadowIntensity);
+        accumulatedColor += colorMask * (lightIntensity * (1.0 / pi) * diffuse * shadowIntensity);
         origin = isect.position;
 
         if (bounce > num_iters) {
@@ -1145,7 +1145,7 @@ void main() {
     }
 
     // Light properties
-    vec3 lightEmission = vec3(5.0); // Light intensity/color
+    vec3 lightEmission = vec3(10.0); // Light intensity/color
 
     // Initialize for RIS
     vec3 samples[M];
@@ -1237,16 +1237,14 @@ void main() {
     float W = sumWeights / float(numSamples);
 
     // Calculate final contribution
-    float dist = length(selectedLightPos - isect.position);
     float cosTheta = max(0.0, dot(isect.normal, selectedLightDir));
-    float cosLight = max(0.0, dot(-selectedLightDir, normalize(selectedLightPos - light)));
     vec3 brdf = isect.albedo / PI;
 
     // Final lighting calculation with correct weighting
-    vec3 L = (W * brdf * lightEmission * cosTheta * cosLight) / (dist * dist);
+    vec3 L = (W * brdf * lightEmission * cosTheta);
 
     // Apply a gamma correction to make the image brighter
-    L = pow(L, vec3(1.0/2.2));
+    // L = pow(L, vec3(1.0/2.2));
 
     // Final color
     fragColor = vec4(L, 1.0);
