@@ -36,8 +36,8 @@ float compute_p(vec3 a, vec3 b) {
     float dist = sqrt(distSq);
     vec3 dir_a_to_b = vec_a_to_b / dist; // Normalized direction from a to b
 
-    vec3 lightNormal = normalize(b - light); // Normal at point b on the sphere
-    float cosBeta = max(0.0, dot(light, dir_a_to_b)); // Cosine between light normal and direction from a to b
+    vec3 lightNormal = -normalize(b - light); // Normal at point b on the sphere
+    float cosBeta = max(0.0, dot(lightNormal, dir_a_to_b)); // Cosine between light normal and direction from a to b
     if (cosBeta == 0.0) return 0.0; // Point on light is not visible or facing away from a
 
     float area = 4.0 * pi * lightSize * lightSize; // Area of the sphere

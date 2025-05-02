@@ -26,7 +26,7 @@ float epsilon = 0.0001;
 float lightSize = 1.0;
 float pi = 3.14159265359;
 float maxBounces = 100.0;
-vec3 ReSTIR_lightEmission = vec3(1.0); // Light intensity/colorvec2 intersectCube(vec3 origin, vec3 ray, vec3 cubeMin, vec3 cubeMax) {
+vec3 ReSTIR_lightEmission = vec3(5.0); // Light intensity/colorvec2 intersectCube(vec3 origin, vec3 ray, vec3 cubeMin, vec3 cubeMax) {
     vec3 tMin = (cubeMin - origin) / ray;
     vec3 tMax = (cubeMax - origin) / ray;
     vec3 t1 = min(tMin, tMax);
@@ -356,7 +356,7 @@ float epsilon = 0.0001;
 float lightSize = 1.0;
 float pi = 3.14159265359;
 float maxBounces = 100.0;
-vec3 ReSTIR_lightEmission = vec3(1.0); // Light intensity/colorfloat random(vec3 scale, float seed) {
+vec3 ReSTIR_lightEmission = vec3(5.0); // Light intensity/colorfloat random(vec3 scale, float seed) {
     return fract(sin(dot(gl_FragCoord.xyz + seed, scale)) * 43758.5453 + seed);
 }
 
@@ -554,7 +554,7 @@ float epsilon = 0.0001;
 float lightSize = 1.0;
 float pi = 3.14159265359;
 float maxBounces = 100.0;
-vec3 ReSTIR_lightEmission = vec3(1.0); // Light intensity/colorfloat intersectSphere(vec3 origin, vec3 ray, vec3 sphereCenter, float sphereRadius) {
+vec3 ReSTIR_lightEmission = vec3(5.0); // Light intensity/colorfloat intersectSphere(vec3 origin, vec3 ray, vec3 sphereCenter, float sphereRadius) {
     vec3 toSphere = origin - sphereCenter;
     float a = dot(ray, ray);
     float b = 2.0 * dot(toSphere, ray);
@@ -740,8 +740,8 @@ float compute_p(vec3 a, vec3 b) {
     float dist = sqrt(distSq);
     vec3 dir_a_to_b = vec_a_to_b / dist; // Normalized direction from a to b
 
-    vec3 lightNormal = normalize(b - light); // Normal at point b on the sphere
-    float cosBeta = max(0.0, dot(light, dir_a_to_b)); // Cosine between light normal and direction from a to b
+    vec3 lightNormal = -normalize(b - light); // Normal at point b on the sphere
+    float cosBeta = max(0.0, dot(lightNormal, dir_a_to_b)); // Cosine between light normal and direction from a to b
     if (cosBeta == 0.0) return 0.0; // Point on light is not visible or facing away from a
 
     float area = 4.0 * pi * lightSize * lightSize; // Area of the sphere
@@ -977,7 +977,7 @@ float epsilon = 0.0001;
 float lightSize = 1.0;
 float pi = 3.14159265359;
 float maxBounces = 100.0;
-vec3 ReSTIR_lightEmission = vec3(1.0); // Light intensity/colorfloat intersectSphere(vec3 origin, vec3 ray, vec3 sphereCenter, float sphereRadius) {
+vec3 ReSTIR_lightEmission = vec3(5.0); // Light intensity/colorfloat intersectSphere(vec3 origin, vec3 ray, vec3 sphereCenter, float sphereRadius) {
     vec3 toSphere = origin - sphereCenter;
     float a = dot(ray, ray);
     float b = 2.0 * dot(toSphere, ray);
@@ -1122,8 +1122,8 @@ float compute_p(vec3 a, vec3 b) {
     float dist = sqrt(distSq);
     vec3 dir_a_to_b = vec_a_to_b / dist; // Normalized direction from a to b
 
-    vec3 lightNormal = normalize(b - light); // Normal at point b on the sphere
-    float cosBeta = max(0.0, dot(light, dir_a_to_b)); // Cosine between light normal and direction from a to b
+    vec3 lightNormal = -normalize(b - light); // Normal at point b on the sphere
+    float cosBeta = max(0.0, dot(lightNormal, dir_a_to_b)); // Cosine between light normal and direction from a to b
     if (cosBeta == 0.0) return 0.0; // Point on light is not visible or facing away from a
 
     float area = 4.0 * pi * lightSize * lightSize; // Area of the sphere
@@ -1294,7 +1294,7 @@ float epsilon = 0.0001;
 float lightSize = 1.0;
 float pi = 3.14159265359;
 float maxBounces = 100.0;
-vec3 ReSTIR_lightEmission = vec3(1.0); // Light intensity/colorfloat intersectSphere(vec3 origin, vec3 ray, vec3 sphereCenter, float sphereRadius) {
+vec3 ReSTIR_lightEmission = vec3(5.0); // Light intensity/colorfloat intersectSphere(vec3 origin, vec3 ray, vec3 sphereCenter, float sphereRadius) {
     vec3 toSphere = origin - sphereCenter;
     float a = dot(ray, ray);
     float b = 2.0 * dot(toSphere, ray);
@@ -1480,8 +1480,8 @@ float compute_p(vec3 a, vec3 b) {
     float dist = sqrt(distSq);
     vec3 dir_a_to_b = vec_a_to_b / dist; // Normalized direction from a to b
 
-    vec3 lightNormal = normalize(b - light); // Normal at point b on the sphere
-    float cosBeta = max(0.0, dot(light, dir_a_to_b)); // Cosine between light normal and direction from a to b
+    vec3 lightNormal = -normalize(b - light); // Normal at point b on the sphere
+    float cosBeta = max(0.0, dot(lightNormal, dir_a_to_b)); // Cosine between light normal and direction from a to b
     if (cosBeta == 0.0) return 0.0; // Point on light is not visible or facing away from a
 
     float area = 4.0 * pi * lightSize * lightSize; // Area of the sphere
