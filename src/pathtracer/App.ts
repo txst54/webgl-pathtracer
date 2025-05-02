@@ -8,7 +8,7 @@ import {
   pathTracerVSText,
   pathTracerFSText,
   initialPassFSText,
-  spatialReuseFSText, risFSText, ReSTIR_initialPassFSText
+  spatialReuseFSText, risFSText, ReSTIR_initialPassFSText, ReSTIR_spatialPassFSText
 } from "./Shaders.js";
 import { Mat4, Vec4, Vec3 } from "../lib/TSM.js";
 import { RenderPass } from "../lib/webglutils/RenderPass.js";
@@ -31,6 +31,7 @@ export class PathTracer extends CanvasAnimation {
 
   // ReSTIR
   private reSTIRInitRenderPass: RenderPass;
+  private reSTIRSpatialRenderPass: RenderPass;
 
   // ReSTIR PT
   private initialPassRenderPass: RenderPass;
@@ -38,10 +39,13 @@ export class PathTracer extends CanvasAnimation {
 
   private framebuffer_pt: WebGLFramebuffer;
   private framebuffer_restir: WebGLFramebuffer;
+  private framebuffer_restirpt: WebGLFramebuffer;
   private cachedCameraRays: { ray00: Vec3, ray01: Vec3, ray10: Vec3, ray11: Vec3 };
 
   private textures: WebGLTexture[]; // PathTracer ping-pong
-  private reservoirTextures: WebGLTexture[]; // ReSTIR
+  private ReSTIR_reservoirTextures: WebGLTexture[]; // ReSTIR
+  private reservoirTextures: WebGLTexture[]; // ReSTIR_PT
+  private RESTIR_NUM_RESERVOIR_TEXTURES: number = 2;
   private NUM_RESERVOIR_TEXTURES: number = 3;
 
   /* PathTracer Info */
@@ -76,6 +80,7 @@ export class PathTracer extends CanvasAnimation {
     this.chunk = new Chunk(0.0, 0.0, 64);
     this.framebuffer_pt = gl.createFramebuffer();
     this.framebuffer_restir = gl.createFramebuffer();
+    this.framebuffer_restirpt = gl.createFramebuffer();
 
     const type = gl.getExtension('OES_texture_float') ? gl.FLOAT : gl.UNSIGNED_BYTE;
 
@@ -84,6 +89,12 @@ export class PathTracer extends CanvasAnimation {
     for(let i = 0; i < 2; i++) {
       this.textures.push(gl.createTexture());
       this.initTexture(this.textures[i], type);
+    }
+
+    this.ReSTIR_reservoirTextures = [];
+    for (let i = 0; i < this.RESTIR_NUM_RESERVOIR_TEXTURES; i++) {
+      this.ReSTIR_reservoirTextures.push(gl.createTexture());
+      this.initTexture(this.ReSTIR_reservoirTextures[i], type);
     }
 
     // Initialize reservoir textures
@@ -106,11 +117,14 @@ export class PathTracer extends CanvasAnimation {
     this.reSTIRInitRenderPass = new RenderPass(gl, pathTracerVSText, ReSTIR_initialPassFSText);
     this.initNativeRenderPass(this.reSTIRInitRenderPass);
 
+    this.reSTIRSpatialRenderPass = new RenderPass(gl, pathTracerVSText, ReSTIR_spatialPassFSText);
+    this.initSpatialReSTIR(this.reSTIRSpatialRenderPass, this.RESTIR_NUM_RESERVOIR_TEXTURES, this.ReSTIR_reservoirTextures);
+
     this.initialPassRenderPass = new RenderPass(gl, pathTracerVSText, initialPassFSText);
     this.initNativeRenderPass(this.initialPassRenderPass);
 
     this.spatialRenderPass = new RenderPass(gl, pathTracerVSText, spatialReuseFSText);
-    this.initSpatialRestir();
+    this.initSpatialReSTIR(this.spatialRenderPass, this.NUM_RESERVOIR_TEXTURES, this.reservoirTextures);
 
     this.lightPosition = new Vec4([-1000, 1000, -1000, 1]);
     this.backgroundColor = new Vec4([0.0, 0.37254903, 0.37254903, 1.0]);    
@@ -251,25 +265,17 @@ export class PathTracer extends CanvasAnimation {
     return this.sampleCount / (this.sampleCount + 1);
   }
 
-  private initSpatialRestir(): void {
-    const num_indices = this.initRayRenderPass(this.spatialRenderPass);
-    this.spatialRenderPass.addUniform("uReservoirData0", (gl, loc) => {
-      gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, this.reservoirTextures[0]);
-      gl.uniform1i(loc, 0);
-    });
-    this.spatialRenderPass.addUniform("uReservoirData1", (gl, loc) => {
-      gl.activeTexture(gl.TEXTURE1);
-      gl.bindTexture(gl.TEXTURE_2D, this.reservoirTextures[1]);
-      gl.uniform1i(loc, 1);
-    });
-    this.spatialRenderPass.addUniform("uReservoirData2", (gl, loc) => {
-      gl.activeTexture(gl.TEXTURE2);
-      gl.bindTexture(gl.TEXTURE_2D, this.reservoirTextures[2]);
-      gl.uniform1i(loc, 2);
-    });
-    this.spatialRenderPass.setDrawData(this.ctx.TRIANGLES, num_indices, this.ctx.UNSIGNED_SHORT, 0);
-    this.spatialRenderPass.setup();
+  private initSpatialReSTIR(renderPass, numTextures, textures): void {
+    const num_indices = this.initRayRenderPass(renderPass);
+    for (let i = 0; i < numTextures; i++) {
+      renderPass.addUniform(`uReservoirData${i}`, (gl, loc) => {
+        gl.activeTexture(gl.TEXTURE0+i);
+        gl.bindTexture(gl.TEXTURE_2D, textures[i]);
+        gl.uniform1i(loc, i);
+      });
+    }
+    renderPass.setDrawData(this.ctx.TRIANGLES, num_indices, this.ctx.UNSIGNED_SHORT, 0);
+    renderPass.setup();
   }
 
   /*
@@ -343,10 +349,19 @@ export class PathTracer extends CanvasAnimation {
     } else if (this.mode == 1) {
       this.risRenderPass.draw();
     } else if (this.mode == 2) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer_restir);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.reservoirTextures[0], 0);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, this.reservoirTextures[1], 0);
+      gl.drawBuffers([
+        gl.COLOR_ATTACHMENT0,
+        gl.COLOR_ATTACHMENT1
+      ]);
       this.reSTIRInitRenderPass.draw();
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      this.reSTIRSpatialRenderPass.draw();
     } else {
       // ReSTIR Render
-      gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer_restir);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer_restirpt);
       gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.reservoirTextures[0], 0);
       gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, this.reservoirTextures[1], 0);
       gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT2, gl.TEXTURE_2D, this.reservoirTextures[2], 0);
