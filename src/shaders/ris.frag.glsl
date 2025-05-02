@@ -39,5 +39,5 @@ void main() {
     // vec3 finalColor = brdf * cosTheta;
     vec3 finalColor = (brdf * ReSTIR_lightEmission * cosTheta) * r.W_Y;
 
-    fragColor = vec4(finalColor * r.W_Y, 1.0);
+    fragColor = vec4(finalColor, 1.0);
 }
