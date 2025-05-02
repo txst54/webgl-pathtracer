@@ -24,6 +24,10 @@ void main() {
     vec3 ray = normalize(initialRay);
     vec3 origin = uEye;
 
+    vec2 randUV = gl_FragCoord.xy / uRes;
+    float jitterSeed = uTime * 1234.5678;
+    randUV += vec2(rand(randUV, jitterSeed), rand(randUV, jitterSeed + 1.0)) * 0.001;
+
     vec4 uReservoirData1Vec = texture(uReservoirData1, coord);
     vec4 uReservoirData2Vec = texture(uReservoirData2, coord);
 
@@ -32,16 +36,14 @@ void main() {
         fragColor = vec4(ReSTIR_lightEmission, 1.0);
         return;
     }
-    ReSTIR_Reservoir r = unpackReservoir(uReservoirData1Vec, uReservoirData2Vec);
-    ReSTIR_Reservoir r_out = r;
-    float new_w_sum = r_out.w_sum;
+    vec3[M] samples;
+    int count;
 
     float randNum = random(vec3(1.0), gl_FragCoord.x * 29.57 + gl_FragCoord.y * 65.69 + uTime * 82.21);
-    for (int dx = -2; dx <= 2; ++dx) {
-        for (int dy = -2; dy <= 2; ++dy) {
+    for (int dx = -1; dx <= 1; ++dx) {
+        for (int dy = -1; dy <= 1; ++dy) {
             vec2 neighbor = gl_FragCoord.xy + vec2(dx, dy);
-            if (neighbor == gl_FragCoord.xy ||
-            neighbor.x < 0.0 || neighbor.y < 0.0 ||
+            if (neighbor.x < 0.0 || neighbor.y < 0.0 ||
             neighbor.x >= uRes.x || neighbor.y >= uRes.y) continue;
 
             vec2 uv = (neighbor + 0.5) / uRes;
@@ -51,21 +53,12 @@ void main() {
 
             ReSTIR_Reservoir candidate = unpackReservoir(uCandidate1, uCandidate2);
             // generate X_i
-            vec3 lightPos = candidate.Y;
-            float p_light = compute_p(isect.position, lightPos);
-            float p_hat = compute_p_hat(isect.position, lightPos, isect.normal, isect.albedo);
-
-            float w = candidate.W_Y;
-
-            if (w <= 0.0) continue;
-
-            new_w_sum += candidate.w_sum;
-            if (randNum < w / new_w_sum) {
-                r_out = candidate;
-            }
+            samples[count] = candidate.Y;
+            count++;
         }
     }
-    r_out.w_sum = new_w_sum;
+    ReSTIR_Reservoir r_out = resample(samples, count, isect, randUV);
+    vec3 finalColor = shade_reservoir(r_out, isect);
 
-    fragColor = vec4(r_out.Y * (r_out.W_Y <= epsilon ? 1.0 : r_out.W_Y), 1.0);
+    fragColor = vec4(finalColor, 1.0);
 }

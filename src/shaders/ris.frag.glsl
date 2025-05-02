@@ -22,25 +22,22 @@ out vec4 fragColor;
 void main() {
     vec3 ray = normalize(initialRay);
     vec3 origin = uEye;
-    vec2 randUV = gl_FragCoord.xy / uRes;
 
+    vec2 randUV = gl_FragCoord.xy / uRes;
     float jitterSeed = uTime * 1234.5678;
     randUV += vec2(rand(randUV, jitterSeed), rand(randUV, jitterSeed + 1.0)) * 0.001;
+
     Isect isect = intersect(ray, origin);
-    vec3[M] samples;
-    int count;
-    random_samples(samples, count, isect, randUV);
-    ReSTIR_Reservoir r = resample(samples, count, isect, randUV);
-    vec3 lightDir = normalize(r.Y - isect.position);
     if (isect.isLight) {
         fragColor = vec4(ReSTIR_lightEmission, 1.0);
         return;
     }
 
-    float cosTheta = max(dot(isect.normal, lightDir), 0.0);
-    vec3 brdf = isect.albedo / pi;
-    // vec3 finalColor = brdf * cosTheta;
-    vec3 finalColor = (brdf * ReSTIR_lightEmission * cosTheta) * r.W_Y;
+    vec3[M] samples;
+    int count;
+    random_samples(samples, count, isect, randUV);
+    ReSTIR_Reservoir r = resample(samples, count, isect, randUV);
+    vec3 finalColor = shade_reservoir(r, isect);
 
     fragColor = vec4(finalColor, 1.0);
 }
