@@ -64,6 +64,13 @@ float compute_p_hat(vec3 a, vec3 b, vec3 normal, vec3 albedo) {
     return length(contrib);
 }
 
+vec3 shade_reservoir(ReSTIR_Reservoir r, Isect isect) {
+    vec3 lightDir = normalize(r.Y - isect.position);
+    float cosTheta = max(dot(isect.normal, lightDir), 0.0);
+    vec3 brdf = isect.albedo / pi;
+    return (brdf * ReSTIR_lightEmission * cosTheta) * r.W_Y;
+}
+
 void random_samples(out vec3[M] samples, out int count, Isect isect, vec2 randUV) {
     count = 0;
     for (int i = 0; i < M; i++) {
@@ -88,6 +95,7 @@ ReSTIR_Reservoir resample(vec3[M] samples, int count, Isect isect, vec2 randUV) 
     ReSTIR_Reservoir r = initializeReservoir();
     if (isect.isLight) {
         r.Y = ReSTIR_lightEmission; // Increased light emission value
+        r.W_Y = 0.0;
         return r;
     }
 

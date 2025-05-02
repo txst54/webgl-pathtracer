@@ -703,12 +703,7 @@ float shadow(vec3 origin, vec3 ray, vec3 sphereCenter, float sphereRadius) {
     float t = intersectSphere(origin, ray, sphereCenter, sphereRadius);
     if (t < 1.0) return 0.0;
     return 1.0;
-}struct RIS_Samples {
-    int num_samples;
-    vec3[M] samples;
-};
-
-float rand(vec2 co, float seed) {
+}float rand(vec2 co, float seed) {
     return fract(sin(dot(co.xy + seed, vec2(12.9898, 78.233))) * 43758.5453);
 }
 
@@ -773,6 +768,13 @@ float compute_p_hat(vec3 a, vec3 b, vec3 normal, vec3 albedo) {
     return length(contrib);
 }
 
+vec3 shade_reservoir(ReSTIR_Reservoir r, Isect isect) {
+    vec3 lightDir = normalize(r.Y - isect.position);
+    float cosTheta = max(dot(isect.normal, lightDir), 0.0);
+    vec3 brdf = isect.albedo / pi;
+    return (brdf * ReSTIR_lightEmission * cosTheta) * r.W_Y;
+}
+
 void random_samples(out vec3[M] samples, out int count, Isect isect, vec2 randUV) {
     count = 0;
     for (int i = 0; i < M; i++) {
@@ -797,6 +799,7 @@ ReSTIR_Reservoir resample(vec3[M] samples, int count, Isect isect, vec2 randUV) 
     ReSTIR_Reservoir r = initializeReservoir();
     if (isect.isLight) {
         r.Y = ReSTIR_lightEmission; // Increased light emission value
+        r.W_Y = 0.0;
         return r;
     }
 
@@ -843,103 +846,21 @@ ReSTIR_Reservoir resample(vec3[M] samples, int count, Isect isect, vec2 randUV) 
 void main() {
     vec3 ray = normalize(initialRay);
     vec3 origin = uEye;
-    vec2 randUV = gl_FragCoord.xy / uRes;
 
-    // Add time-based jitter for temporal anti-aliasing
+    vec2 randUV = gl_FragCoord.xy / uRes;
     float jitterSeed = uTime * 1234.5678;
     randUV += vec2(rand(randUV, jitterSeed), rand(randUV, jitterSeed + 1.0)) * 0.001;
 
     Isect isect = intersect(ray, origin);
-    ReSTIR_Reservoir r = initializeReservoir();
 
-    // Direct hit on light source
-    if (isect.isLight) {
-        r.Y = ReSTIR_lightEmission; // Increased light emission value
-        out_ReservoirData1 = packReservoir1(r);
-        out_ReservoirData2 = packReservoir2(r);
-        return;
-    }
-
-    // Initialize for RIS
-    vec3 samples[M];
-    float p_hatx[M];
-    float p_x[M];
-    float weights[M];
-    int numSamples = 0;
-
-    // Generate candidates
-    for (int i = 0; i < M; i++) {
-        // Generate different random values for each sample
-        float seed1 = float(i) * 0.1 + uTime * 0.5;
-        float seed2 = float(i) * 0.2 + uTime * 0.7;
-        vec2 u = vec2(rand(randUV, seed1), rand(randUV, seed2));
-
-        // Sample point on light
-        vec3 lightPos = sampleSphere(light, lightSize, u);
-        vec3 lightDir = normalize(lightPos - isect.position);
-
-        // Skip samples that are not visible or facing away
-        if (dot(isect.normal, lightDir) <= 0.0) continue;
-
-        // Perform shadow test
-        if (!isVisible(isect.position, lightPos)) continue;
-
-        float p_light = compute_p(isect.position, lightPos);
-        float p_hat = compute_p_hat(isect.position, lightPos, isect.normal, isect.albedo);
-
-        if (p_hat <= 0.0) continue;
-
-        // Store the candidate
-        samples[numSamples] = lightPos;
-        p_hatx[numSamples] = p_hat;
-        p_x[numSamples] = p_light;
-
-        // Calculate weight for RIS
-        weights[numSamples] = p_hat / p_light;
-        r.w_sum += weights[numSamples];
-
-        numSamples++;
-    }
-
-    // No valid samples found
-    if (numSamples == 0 || r.w_sum <= 0.0) {
-        r.Y = vec3(0.0);
-        out_ReservoirData1 = packReservoir1(r);
-        out_ReservoirData2 = packReservoir2(r);
-        return;
-    }
-
-    for (int i = 0; i < numSamples; i++) {
-        weights[i] /= r.w_sum;
-    }
-
-    float randint = rand(randUV, uTime + 123.456);
-    int selectedIdx = 0;
-    float accumWeight = 0.0;
-
-    for (int i = 0; i < numSamples; i++) {
-        accumWeight += weights[i];
-        if (randint <= accumWeight) {
-            selectedIdx = i;
-            break;
-        }
-    }
-
-    // Get the selected sample
-    // r.Y = samples[selectedIdx];
-
-    // Calculate final weight for the selected sample
-    r.W_Y = r.w_sum / float(numSamples);
-
-    // Calculate final contribution
-//    float cosTheta = max(0.0, dot(isect.normal, samples[selectedIdx]));
-//    vec3 brdf = isect.albedo / PI;
-
-    r.Y = samples[selectedIdx];
-
+    vec3[M] samples;
+    int count;
+    random_samples(samples, count, isect, randUV);
+    ReSTIR_Reservoir r = resample(samples, count, isect, randUV);
     out_ReservoirData1 = packReservoir1(r);
     out_ReservoirData2 = packReservoir2(r);
 }
+
 `;
 
 export const ReSTIR_spatialPassFSText = 
@@ -1088,12 +1009,7 @@ vec4 packReservoir1(ReSTIR_Reservoir r) {
 vec4 packReservoir2(ReSTIR_Reservoir r) {
     return vec4(r.W_Y, r.w_sum, 0.0, 0.0); // zero pad unused values
 }
-struct RIS_Samples {
-    int num_samples;
-    vec3[M] samples;
-};
-
-float rand(vec2 co, float seed) {
+float rand(vec2 co, float seed) {
     return fract(sin(dot(co.xy + seed, vec2(12.9898, 78.233))) * 43758.5453);
 }
 
@@ -1158,6 +1074,13 @@ float compute_p_hat(vec3 a, vec3 b, vec3 normal, vec3 albedo) {
     return length(contrib);
 }
 
+vec3 shade_reservoir(ReSTIR_Reservoir r, Isect isect) {
+    vec3 lightDir = normalize(r.Y - isect.position);
+    float cosTheta = max(dot(isect.normal, lightDir), 0.0);
+    vec3 brdf = isect.albedo / pi;
+    return (brdf * ReSTIR_lightEmission * cosTheta) * r.W_Y;
+}
+
 void random_samples(out vec3[M] samples, out int count, Isect isect, vec2 randUV) {
     count = 0;
     for (int i = 0; i < M; i++) {
@@ -1182,6 +1105,7 @@ ReSTIR_Reservoir resample(vec3[M] samples, int count, Isect isect, vec2 randUV) 
     ReSTIR_Reservoir r = initializeReservoir();
     if (isect.isLight) {
         r.Y = ReSTIR_lightEmission; // Increased light emission value
+        r.W_Y = 0.0;
         return r;
     }
 
@@ -1230,6 +1154,10 @@ void main() {
     vec3 ray = normalize(initialRay);
     vec3 origin = uEye;
 
+    vec2 randUV = gl_FragCoord.xy / uRes;
+    float jitterSeed = uTime * 1234.5678;
+    randUV += vec2(rand(randUV, jitterSeed), rand(randUV, jitterSeed + 1.0)) * 0.001;
+
     vec4 uReservoirData1Vec = texture(uReservoirData1, coord);
     vec4 uReservoirData2Vec = texture(uReservoirData2, coord);
 
@@ -1238,16 +1166,14 @@ void main() {
         fragColor = vec4(ReSTIR_lightEmission, 1.0);
         return;
     }
-    ReSTIR_Reservoir r = unpackReservoir(uReservoirData1Vec, uReservoirData2Vec);
-    ReSTIR_Reservoir r_out = r;
-    float new_w_sum = r_out.w_sum;
+    vec3[M] samples;
+    int count;
 
     float randNum = random(vec3(1.0), gl_FragCoord.x * 29.57 + gl_FragCoord.y * 65.69 + uTime * 82.21);
-    for (int dx = -2; dx <= 2; ++dx) {
-        for (int dy = -2; dy <= 2; ++dy) {
+    for (int dx = -1; dx <= 1; ++dx) {
+        for (int dy = -1; dy <= 1; ++dy) {
             vec2 neighbor = gl_FragCoord.xy + vec2(dx, dy);
-            if (neighbor == gl_FragCoord.xy ||
-            neighbor.x < 0.0 || neighbor.y < 0.0 ||
+            if (neighbor.x < 0.0 || neighbor.y < 0.0 ||
             neighbor.x >= uRes.x || neighbor.y >= uRes.y) continue;
 
             vec2 uv = (neighbor + 0.5) / uRes;
@@ -1257,23 +1183,14 @@ void main() {
 
             ReSTIR_Reservoir candidate = unpackReservoir(uCandidate1, uCandidate2);
             // generate X_i
-            vec3 lightPos = candidate.Y;
-            float p_light = compute_p(isect.position, lightPos);
-            float p_hat = compute_p_hat(isect.position, lightPos, isect.normal, isect.albedo);
-
-            float w = candidate.W_Y;
-
-            if (w <= 0.0) continue;
-
-            new_w_sum += candidate.w_sum;
-            if (randNum < w / new_w_sum) {
-                r_out = candidate;
-            }
+            samples[count] = candidate.Y;
+            count++;
         }
     }
-    r_out.w_sum = new_w_sum;
+    ReSTIR_Reservoir r_out = resample(samples, count, isect, randUV);
+    vec3 finalColor = shade_reservoir(r_out, isect);
 
-    fragColor = vec4(r_out.Y * (r_out.W_Y <= epsilon ? 1.0 : r_out.W_Y), 1.0);
+    fragColor = vec4(finalColor, 1.0);
 }
 
 `;
@@ -1449,12 +1366,7 @@ vec4 packReservoir1(ReSTIR_Reservoir r) {
 vec4 packReservoir2(ReSTIR_Reservoir r) {
     return vec4(r.W_Y, r.w_sum, 0.0, 0.0); // zero pad unused values
 }
-struct RIS_Samples {
-    int num_samples;
-    vec3[M] samples;
-};
-
-float rand(vec2 co, float seed) {
+float rand(vec2 co, float seed) {
     return fract(sin(dot(co.xy + seed, vec2(12.9898, 78.233))) * 43758.5453);
 }
 
@@ -1519,6 +1431,13 @@ float compute_p_hat(vec3 a, vec3 b, vec3 normal, vec3 albedo) {
     return length(contrib);
 }
 
+vec3 shade_reservoir(ReSTIR_Reservoir r, Isect isect) {
+    vec3 lightDir = normalize(r.Y - isect.position);
+    float cosTheta = max(dot(isect.normal, lightDir), 0.0);
+    vec3 brdf = isect.albedo / pi;
+    return (brdf * ReSTIR_lightEmission * cosTheta) * r.W_Y;
+}
+
 void random_samples(out vec3[M] samples, out int count, Isect isect, vec2 randUV) {
     count = 0;
     for (int i = 0; i < M; i++) {
@@ -1543,6 +1462,7 @@ ReSTIR_Reservoir resample(vec3[M] samples, int count, Isect isect, vec2 randUV) 
     ReSTIR_Reservoir r = initializeReservoir();
     if (isect.isLight) {
         r.Y = ReSTIR_lightEmission; // Increased light emission value
+        r.W_Y = 0.0;
         return r;
     }
 
@@ -1589,25 +1509,22 @@ ReSTIR_Reservoir resample(vec3[M] samples, int count, Isect isect, vec2 randUV) 
 void main() {
     vec3 ray = normalize(initialRay);
     vec3 origin = uEye;
-    vec2 randUV = gl_FragCoord.xy / uRes;
 
+    vec2 randUV = gl_FragCoord.xy / uRes;
     float jitterSeed = uTime * 1234.5678;
     randUV += vec2(rand(randUV, jitterSeed), rand(randUV, jitterSeed + 1.0)) * 0.001;
+
     Isect isect = intersect(ray, origin);
-    vec3[M] samples;
-    int count;
-    random_samples(samples, count, isect, randUV);
-    ReSTIR_Reservoir r = resample(samples, count, isect, randUV);
-    vec3 lightDir = normalize(r.Y - isect.position);
     if (isect.isLight) {
         fragColor = vec4(ReSTIR_lightEmission, 1.0);
         return;
     }
 
-    float cosTheta = max(dot(isect.normal, lightDir), 0.0);
-    vec3 brdf = isect.albedo / pi;
-    // vec3 finalColor = brdf * cosTheta;
-    vec3 finalColor = (brdf * ReSTIR_lightEmission * cosTheta) * r.W_Y;
+    vec3[M] samples;
+    int count;
+    random_samples(samples, count, isect, randUV);
+    ReSTIR_Reservoir r = resample(samples, count, isect, randUV);
+    vec3 finalColor = shade_reservoir(r, isect);
 
     fragColor = vec4(finalColor, 1.0);
 }
