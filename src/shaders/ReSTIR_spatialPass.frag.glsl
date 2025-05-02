@@ -21,6 +21,8 @@ void main() {
     ReSTIR_Reservoir r = unpackReservoir(uReservoirData1Vec, uReservoirData2Vec);
     ReSTIR_Reservoir r_out = r;
     float new_w_sum = r_out.w_sum;
+    fragColor = vec4(r_out.Y * 1000.0, 1.0);
+    return;
 
     float randNum = random(vec3(1.0), gl_FragCoord.x * 29.57 + gl_FragCoord.y * 65.69 + uTime * 82.21);
     float M = 1.0;
@@ -49,5 +51,5 @@ void main() {
         }
     }
 
-    fragColor = vec4(r_out.Y, 1.0);
+    fragColor = vec4(r_out.Y * 1000.0, 1.0);
 }

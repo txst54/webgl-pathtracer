@@ -350,8 +350,8 @@ export class PathTracer extends CanvasAnimation {
       this.risRenderPass.draw();
     } else if (this.mode == 2) {
       gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer_restir);
-      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.reservoirTextures[0], 0);
-      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, this.reservoirTextures[1], 0);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.ReSTIR_reservoirTextures[0], 0);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, this.ReSTIR_reservoirTextures[1], 0);
       gl.drawBuffers([
         gl.COLOR_ATTACHMENT0,
         gl.COLOR_ATTACHMENT1

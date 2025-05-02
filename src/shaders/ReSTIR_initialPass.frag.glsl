@@ -162,12 +162,13 @@ void main() {
 
     // Calculate final weight for the selected sample
     r.W_Y = r.w_sum / float(numSamples);
-    out_ReservoirData1 = packReservoir1(r);
-    out_ReservoirData2 = packReservoir2(r);
 
     // Calculate final contribution
     float cosTheta = max(0.0, dot(isect.normal, samples[selectedIdx]));
     vec3 brdf = isect.albedo / PI;
 
-    r.Y = (r.W_Y * brdf * lightEmission * cosTheta);
+    r.Y = (brdf * lightEmission * cosTheta);
+
+    out_ReservoirData1 = packReservoir1(r);
+    out_ReservoirData2 = packReservoir2(r);
 }
