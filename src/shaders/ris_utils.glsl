@@ -79,7 +79,7 @@ void random_samples(out vec3[M] samples, out float[M] contrib_weights, Isect ise
 }
 
 
-ReSTIR_Reservoir resample(vec3[M] samples, float[M] contrib_weights, Isect isect, vec2 randUV, int mis_type, vec3 aux) {
+ReSTIR_Reservoir resample(vec3[M] samples, float[M] contrib_weights, int count, Isect isect, vec2 randUV, int mis_type, vec3 aux) {
     ReSTIR_Reservoir r = initializeReservoir();
     if (isect.isLight) {
         r.Y = ReSTIR_lightEmission; // Increased light emission value
@@ -92,13 +92,20 @@ ReSTIR_Reservoir resample(vec3[M] samples, float[M] contrib_weights, Isect isect
     float p_sum = 0.0;
 
     for (int i = 0; i < M; i++) {
-        p_sum += 1.0 / contrib_weights[i]; // (1 / (1 / p(x)))
+        if (i >= count) {
+            break;
+        }
+        p_sum += 1.0 / contrib_weights[i]; // (1 / (1 / p(x)));
     }
 
     for (int i = 0; i < M; i++) {
+        if (i >= count) {
+            break;
+        }
         float p_hat = compute_p_hat(isect.position, samples[i], isect.normal, isect.albedo);
         float p_i = 1.0 / contrib_weights[i];
-        float m_i = mis_type == 0 ? 1.0 / float(M) : mis_type == 1 ? p_hat / aux.x : 1.0;
+        float temporal_weight = i == 0 ? 1.0 : aux.x;
+        float m_i = mis_type == 0 ? 1.0 / float(M) : mis_type == 1 ? p_hat / aux.x : temporal_weight * p_hat / aux.y;
         float W_X_i = contrib_weights[i];
         weights[i] = m_i * p_hat * W_X_i;
         p_hatx[i] = p_hat;
@@ -109,6 +116,9 @@ ReSTIR_Reservoir resample(vec3[M] samples, float[M] contrib_weights, Isect isect
     int selectedIdx = 0;
 
     for (int i = 0; i < M; i++) {
+        if (i >= count) {
+            break;
+        }
         if (weights[i] > epsilon) {
             randint = randint - (weights[i]/r.w_sum);
             if (randint <= 0.0) {

@@ -65,7 +65,7 @@ void main() {
             }
         }
     }
-    ReSTIR_Reservoir r_out = resample(samples, contrib_weights, isect, randUV, 1, vec3(sum_p_hat));
+    ReSTIR_Reservoir r_out = resample(samples, contrib_weights, 9, isect, randUV, 1, vec3(sum_p_hat));
     r_out.c = min(512.0, rout_c);
     vec3 finalColor = shade_reservoir(r_out, isect);
     fragColor = vec4(finalColor, 1.0);

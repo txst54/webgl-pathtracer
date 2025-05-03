@@ -425,21 +425,21 @@ export class PathTracer extends CanvasAnimation {
         gl.COLOR_ATTACHMENT1
       ]);
       this.reSTIRTemporalRenderPass.draw(); //this gets me my 2 textures that i feed into the next stage
-      this.gui.getCamera().updateViewMatrixNext();
-      gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer_restirsts);
-      //these top 2 textures are fed back around to the first step for the next cycle
-      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.ReSTIR_reservoirTexturesST[2], 0);
-      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, this.ReSTIR_reservoirTexturesST[3], 0);
-      //this is my actual fragment shader color:
-      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT2, gl.TEXTURE_2D, this.ReSTIR_reservoirTexturesST[4], 0);
-      gl.drawBuffers([
-        gl.COLOR_ATTACHMENT0,
-        gl.COLOR_ATTACHMENT1,
-        gl.COLOR_ATTACHMENT2,
-      ]);
-      this.reSTIRTspatialRenderPass.draw(); // i want to show the texture in that i drew in ReSTIR_reservoirTexturesST[4]
-      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-      this.reSTIRSTDrawPass.draw();
+      // this.gui.getCamera().updateViewMatrixNext();
+      // gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer_restirsts);
+      // //these top 2 textures are fed back around to the first step for the next cycle
+      // gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.ReSTIR_reservoirTexturesST[2], 0);
+      // gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, this.ReSTIR_reservoirTexturesST[3], 0);
+      // //this is my actual fragment shader color:
+      // gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT2, gl.TEXTURE_2D, this.ReSTIR_reservoirTexturesST[4], 0);
+      // gl.drawBuffers([
+      //   gl.COLOR_ATTACHMENT0,
+      //   gl.COLOR_ATTACHMENT1,
+      //   gl.COLOR_ATTACHMENT2,
+      // ]);
+      // this.reSTIRTspatialRenderPass.draw(); // i want to show the texture in that i drew in ReSTIR_reservoirTexturesST[4]
+      // gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      // this.reSTIRSTDrawPass.draw();
 
     }
 
