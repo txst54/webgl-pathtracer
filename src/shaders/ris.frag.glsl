@@ -34,9 +34,10 @@ void main() {
     }
 
     vec3[M] samples;
+    float[M] contrib_weights;
     int count;
-    random_samples(samples, count, isect, randUV);
-    ReSTIR_Reservoir r = resample(samples, count, isect, randUV);
+    random_samples(samples, contrib_weights, count, isect, randUV);
+    ReSTIR_Reservoir r = resample(samples, contrib_weights, count, isect, randUV, 0, 0.0);
     vec3 finalColor = shade_reservoir(r, isect);
 
     fragColor = vec4(finalColor, 1.0);

@@ -30,13 +30,15 @@ void main() {
 
     vec4 uReservoirData1Vec = texture(uReservoirData1, coord);
     vec4 uReservoirData2Vec = texture(uReservoirData2, coord);
-
+    ReSTIR_Reservoir r = unpackReservoir(uReservoirData1Vec, uReservoirData2Vec);
     Isect isect = intersect(ray, origin);
     if (isect.isLight) {
         fragColor = vec4(ReSTIR_lightEmission, 1.0);
         return;
     }
     vec3[M] samples;
+    float[M] contrib_weights;
+    float sum_p_hat = 0.0;
     int count;
 
     float randNum = random(vec3(1.0), gl_FragCoord.x * 29.57 + gl_FragCoord.y * 65.69 + uTime * 82.21);
@@ -53,12 +55,15 @@ void main() {
 
             ReSTIR_Reservoir candidate = unpackReservoir(uCandidate1, uCandidate2);
             // generate X_i
-            samples[count] = candidate.Y;
-            count++;
+            if (count < M) {
+                samples[count] = candidate.Y;
+                contrib_weights[count] = candidate.W_Y;
+                sum_p_hat += candidate.p_hat;
+                count++;
+            }
         }
     }
-    ReSTIR_Reservoir r_out = resample(samples, count, isect, randUV);
+    ReSTIR_Reservoir r_out = resample(samples, contrib_weights, count, isect, randUV, 1, sum_p_hat);
     vec3 finalColor = shade_reservoir(r_out, isect);
-
     fragColor = vec4(finalColor, 1.0);
 }

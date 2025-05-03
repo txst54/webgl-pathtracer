@@ -71,7 +71,7 @@ vec3 shade_reservoir(ReSTIR_Reservoir r, Isect isect) {
     return (brdf * ReSTIR_lightEmission * cosTheta) * r.W_Y;
 }
 
-void random_samples(out vec3[M] samples, out int count, Isect isect, vec2 randUV) {
+void random_samples(out vec3[M] samples, out float[M] contrib_weights, out int count, Isect isect, vec2 randUV) {
     count = 0;
     for (int i = 0; i < M; i++) {
         float seed1 = float(i) * 0.1 + uTime * 0.5;
@@ -85,13 +85,14 @@ void random_samples(out vec3[M] samples, out int count, Isect isect, vec2 randUV
 
         if (count < M) {
             samples[count] = lightPos;
+            contrib_weights[count] = 1.0 / compute_p(isect.position, lightPos);
             count++;
         }
     }
 }
 
 
-ReSTIR_Reservoir resample(vec3[M] samples, int count, Isect isect, vec2 randUV) {
+ReSTIR_Reservoir resample(vec3[M] samples, float[M] contrib_weights, int count, Isect isect, vec2 randUV, int mis_type, float aux) {
     ReSTIR_Reservoir r = initializeReservoir();
     if (isect.isLight) {
         r.Y = ReSTIR_lightEmission; // Increased light emission value
@@ -106,18 +107,17 @@ ReSTIR_Reservoir resample(vec3[M] samples, int count, Isect isect, vec2 randUV) 
     }
 
     float p_hatx[M];
-    float p_x[M];
     float weights[M];
 
     for (int i = 0; i < M; i++) {
         if (i >= count) {
             break;
         }
-        float p_light = compute_p(isect.position, samples[i]);
         float p_hat = compute_p_hat(isect.position, samples[i], isect.normal, isect.albedo);
-        weights[i] = p_hat / p_light / float(count);
+        float m_i = mis_type == 0 ? 1.0 / float(count) : mis_type == 1 ? p_hat / aux : 1.0;
+        float W_X_i = contrib_weights[i];
+        weights[i] = m_i * p_hat * W_X_i;
         p_hatx[i] = p_hat;
-        p_x[i] = p_light;
         r.w_sum += weights[i];
     }
 
@@ -135,6 +135,7 @@ ReSTIR_Reservoir resample(vec3[M] samples, int count, Isect isect, vec2 randUV) 
         }
     }
     r.Y = samples[selectedIdx];
+    r.p_hat = p_hatx[selectedIdx];
     r.W_Y = r.w_sum / p_hatx[selectedIdx];
     return r;
 }

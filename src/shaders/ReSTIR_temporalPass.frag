@@ -146,5 +146,3 @@ void main() {
     ReSTIR_Reservoir r_prev = unpackReservoir(uReservoirData1Vec, uReservoirData2Vec);
 
 }
-
-merge

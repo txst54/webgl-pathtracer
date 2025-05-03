@@ -636,7 +636,9 @@ Isect intersect(vec3 ray, vec3 origin) {
 struct ReSTIR_Reservoir {
     vec3 Y;      // light direction or position
     float W_Y;   // selected sample weight
+    float p_hat;
     float w_sum; // total weight of all candidates
+    float c;    //sample count
 };
 
 ReSTIR_Reservoir initializeReservoir() {
@@ -644,19 +646,21 @@ ReSTIR_Reservoir initializeReservoir() {
     r.Y = vec3(0.0);
     r.W_Y = 0.0;
     r.w_sum = 0.0;
+
     return r;
 }
 
 ReSTIR_Reservoir unpackReservoir(vec4 data1, vec4 data2) {
     ReSTIR_Reservoir r;
     r.Y = data1.rgb;        // using .rgb for vec3
+    r.p_hat = data1.a;
     r.W_Y = data2.r;
     r.w_sum = data2.g;
     return r;
 }
 
 vec4 packReservoir1(ReSTIR_Reservoir r) {
-    return vec4(r.Y, 1.0); // 1.0 is a placeholder alpha
+    return vec4(r.Y, r.p_hat); // 1.0 is a placeholder alpha
 }
 
 vec4 packReservoir2(ReSTIR_Reservoir r) {
@@ -775,7 +779,7 @@ vec3 shade_reservoir(ReSTIR_Reservoir r, Isect isect) {
     return (brdf * ReSTIR_lightEmission * cosTheta) * r.W_Y;
 }
 
-void random_samples(out vec3[M] samples, out int count, Isect isect, vec2 randUV) {
+void random_samples(out vec3[M] samples, out float[M] contrib_weights, out int count, Isect isect, vec2 randUV) {
     count = 0;
     for (int i = 0; i < M; i++) {
         float seed1 = float(i) * 0.1 + uTime * 0.5;
@@ -789,13 +793,14 @@ void random_samples(out vec3[M] samples, out int count, Isect isect, vec2 randUV
 
         if (count < M) {
             samples[count] = lightPos;
+            contrib_weights[count] = 1.0 / compute_p(isect.position, lightPos);
             count++;
         }
     }
 }
 
 
-ReSTIR_Reservoir resample(vec3[M] samples, int count, Isect isect, vec2 randUV) {
+ReSTIR_Reservoir resample(vec3[M] samples, float[M] contrib_weights, int count, Isect isect, vec2 randUV, int mis_type, float aux) {
     ReSTIR_Reservoir r = initializeReservoir();
     if (isect.isLight) {
         r.Y = ReSTIR_lightEmission; // Increased light emission value
@@ -810,18 +815,17 @@ ReSTIR_Reservoir resample(vec3[M] samples, int count, Isect isect, vec2 randUV) 
     }
 
     float p_hatx[M];
-    float p_x[M];
     float weights[M];
 
     for (int i = 0; i < M; i++) {
         if (i >= count) {
             break;
         }
-        float p_light = compute_p(isect.position, samples[i]);
         float p_hat = compute_p_hat(isect.position, samples[i], isect.normal, isect.albedo);
-        weights[i] = p_hat / p_light / float(count);
+        float m_i = mis_type == 0 ? 1.0 / float(count) : mis_type == 1 ? p_hat / aux : 1.0;
+        float W_X_i = contrib_weights[i];
+        weights[i] = m_i * p_hat * W_X_i;
         p_hatx[i] = p_hat;
-        p_x[i] = p_light;
         r.w_sum += weights[i];
     }
 
@@ -839,6 +843,7 @@ ReSTIR_Reservoir resample(vec3[M] samples, int count, Isect isect, vec2 randUV) 
         }
     }
     r.Y = samples[selectedIdx];
+    r.p_hat = p_hatx[selectedIdx];
     r.W_Y = r.w_sum / p_hatx[selectedIdx];
     return r;
 }
@@ -854,9 +859,10 @@ void main() {
     Isect isect = intersect(ray, origin);
 
     vec3[M] samples;
+    float[M] contrib_weights;
     int count;
-    random_samples(samples, count, isect, randUV);
-    ReSTIR_Reservoir r = resample(samples, count, isect, randUV);
+    random_samples(samples, contrib_weights, count, isect, randUV);
+    ReSTIR_Reservoir r = resample(samples, contrib_weights, count, isect, randUV, 0, 0.0);
     out_ReservoirData1 = packReservoir1(r);
     out_ReservoirData2 = packReservoir2(r);
 }
@@ -983,7 +989,9 @@ Isect intersect(vec3 ray, vec3 origin) {
 struct ReSTIR_Reservoir {
     vec3 Y;      // light direction or position
     float W_Y;   // selected sample weight
+    float p_hat;
     float w_sum; // total weight of all candidates
+    float c;    //sample count
 };
 
 ReSTIR_Reservoir initializeReservoir() {
@@ -991,19 +999,21 @@ ReSTIR_Reservoir initializeReservoir() {
     r.Y = vec3(0.0);
     r.W_Y = 0.0;
     r.w_sum = 0.0;
+
     return r;
 }
 
 ReSTIR_Reservoir unpackReservoir(vec4 data1, vec4 data2) {
     ReSTIR_Reservoir r;
     r.Y = data1.rgb;        // using .rgb for vec3
+    r.p_hat = data1.a;
     r.W_Y = data2.r;
     r.w_sum = data2.g;
     return r;
 }
 
 vec4 packReservoir1(ReSTIR_Reservoir r) {
-    return vec4(r.Y, 1.0); // 1.0 is a placeholder alpha
+    return vec4(r.Y, r.p_hat); // 1.0 is a placeholder alpha
 }
 
 vec4 packReservoir2(ReSTIR_Reservoir r) {
@@ -1081,7 +1091,7 @@ vec3 shade_reservoir(ReSTIR_Reservoir r, Isect isect) {
     return (brdf * ReSTIR_lightEmission * cosTheta) * r.W_Y;
 }
 
-void random_samples(out vec3[M] samples, out int count, Isect isect, vec2 randUV) {
+void random_samples(out vec3[M] samples, out float[M] contrib_weights, out int count, Isect isect, vec2 randUV) {
     count = 0;
     for (int i = 0; i < M; i++) {
         float seed1 = float(i) * 0.1 + uTime * 0.5;
@@ -1095,13 +1105,14 @@ void random_samples(out vec3[M] samples, out int count, Isect isect, vec2 randUV
 
         if (count < M) {
             samples[count] = lightPos;
+            contrib_weights[count] = 1.0 / compute_p(isect.position, lightPos);
             count++;
         }
     }
 }
 
 
-ReSTIR_Reservoir resample(vec3[M] samples, int count, Isect isect, vec2 randUV) {
+ReSTIR_Reservoir resample(vec3[M] samples, float[M] contrib_weights, int count, Isect isect, vec2 randUV, int mis_type, float aux) {
     ReSTIR_Reservoir r = initializeReservoir();
     if (isect.isLight) {
         r.Y = ReSTIR_lightEmission; // Increased light emission value
@@ -1116,18 +1127,17 @@ ReSTIR_Reservoir resample(vec3[M] samples, int count, Isect isect, vec2 randUV) 
     }
 
     float p_hatx[M];
-    float p_x[M];
     float weights[M];
 
     for (int i = 0; i < M; i++) {
         if (i >= count) {
             break;
         }
-        float p_light = compute_p(isect.position, samples[i]);
         float p_hat = compute_p_hat(isect.position, samples[i], isect.normal, isect.albedo);
-        weights[i] = p_hat / p_light / float(count);
+        float m_i = mis_type == 0 ? 1.0 / float(count) : mis_type == 1 ? p_hat / aux : 1.0;
+        float W_X_i = contrib_weights[i];
+        weights[i] = m_i * p_hat * W_X_i;
         p_hatx[i] = p_hat;
-        p_x[i] = p_light;
         r.w_sum += weights[i];
     }
 
@@ -1145,6 +1155,7 @@ ReSTIR_Reservoir resample(vec3[M] samples, int count, Isect isect, vec2 randUV) 
         }
     }
     r.Y = samples[selectedIdx];
+    r.p_hat = p_hatx[selectedIdx];
     r.W_Y = r.w_sum / p_hatx[selectedIdx];
     return r;
 }
@@ -1160,13 +1171,15 @@ void main() {
 
     vec4 uReservoirData1Vec = texture(uReservoirData1, coord);
     vec4 uReservoirData2Vec = texture(uReservoirData2, coord);
-
+    ReSTIR_Reservoir r = unpackReservoir(uReservoirData1Vec, uReservoirData2Vec);
     Isect isect = intersect(ray, origin);
     if (isect.isLight) {
         fragColor = vec4(ReSTIR_lightEmission, 1.0);
         return;
     }
     vec3[M] samples;
+    float[M] contrib_weights;
+    float sum_p_hat = 0.0;
     int count;
 
     float randNum = random(vec3(1.0), gl_FragCoord.x * 29.57 + gl_FragCoord.y * 65.69 + uTime * 82.21);
@@ -1183,13 +1196,16 @@ void main() {
 
             ReSTIR_Reservoir candidate = unpackReservoir(uCandidate1, uCandidate2);
             // generate X_i
-            samples[count] = candidate.Y;
-            count++;
+            if (count < M) {
+                samples[count] = candidate.Y;
+                contrib_weights[count] = candidate.W_Y;
+                sum_p_hat += candidate.p_hat;
+                count++;
+            }
         }
     }
-    ReSTIR_Reservoir r_out = resample(samples, count, isect, randUV);
+    ReSTIR_Reservoir r_out = resample(samples, contrib_weights, count, isect, randUV, 1, sum_p_hat);
     vec3 finalColor = shade_reservoir(r_out, isect);
-
     fragColor = vec4(finalColor, 1.0);
 }
 
@@ -1340,7 +1356,9 @@ float shadow(vec3 origin, vec3 ray, vec3 sphereCenter, float sphereRadius) {
 struct ReSTIR_Reservoir {
     vec3 Y;      // light direction or position
     float W_Y;   // selected sample weight
+    float p_hat;
     float w_sum; // total weight of all candidates
+    float c;    //sample count
 };
 
 ReSTIR_Reservoir initializeReservoir() {
@@ -1348,19 +1366,21 @@ ReSTIR_Reservoir initializeReservoir() {
     r.Y = vec3(0.0);
     r.W_Y = 0.0;
     r.w_sum = 0.0;
+
     return r;
 }
 
 ReSTIR_Reservoir unpackReservoir(vec4 data1, vec4 data2) {
     ReSTIR_Reservoir r;
     r.Y = data1.rgb;        // using .rgb for vec3
+    r.p_hat = data1.a;
     r.W_Y = data2.r;
     r.w_sum = data2.g;
     return r;
 }
 
 vec4 packReservoir1(ReSTIR_Reservoir r) {
-    return vec4(r.Y, 1.0); // 1.0 is a placeholder alpha
+    return vec4(r.Y, r.p_hat); // 1.0 is a placeholder alpha
 }
 
 vec4 packReservoir2(ReSTIR_Reservoir r) {
@@ -1438,7 +1458,7 @@ vec3 shade_reservoir(ReSTIR_Reservoir r, Isect isect) {
     return (brdf * ReSTIR_lightEmission * cosTheta) * r.W_Y;
 }
 
-void random_samples(out vec3[M] samples, out int count, Isect isect, vec2 randUV) {
+void random_samples(out vec3[M] samples, out float[M] contrib_weights, out int count, Isect isect, vec2 randUV) {
     count = 0;
     for (int i = 0; i < M; i++) {
         float seed1 = float(i) * 0.1 + uTime * 0.5;
@@ -1452,13 +1472,14 @@ void random_samples(out vec3[M] samples, out int count, Isect isect, vec2 randUV
 
         if (count < M) {
             samples[count] = lightPos;
+            contrib_weights[count] = 1.0 / compute_p(isect.position, lightPos);
             count++;
         }
     }
 }
 
 
-ReSTIR_Reservoir resample(vec3[M] samples, int count, Isect isect, vec2 randUV) {
+ReSTIR_Reservoir resample(vec3[M] samples, float[M] contrib_weights, int count, Isect isect, vec2 randUV, int mis_type, float aux) {
     ReSTIR_Reservoir r = initializeReservoir();
     if (isect.isLight) {
         r.Y = ReSTIR_lightEmission; // Increased light emission value
@@ -1473,18 +1494,17 @@ ReSTIR_Reservoir resample(vec3[M] samples, int count, Isect isect, vec2 randUV) 
     }
 
     float p_hatx[M];
-    float p_x[M];
     float weights[M];
 
     for (int i = 0; i < M; i++) {
         if (i >= count) {
             break;
         }
-        float p_light = compute_p(isect.position, samples[i]);
         float p_hat = compute_p_hat(isect.position, samples[i], isect.normal, isect.albedo);
-        weights[i] = p_hat / p_light / float(count);
+        float m_i = mis_type == 0 ? 1.0 / float(count) : mis_type == 1 ? p_hat / aux : 1.0;
+        float W_X_i = contrib_weights[i];
+        weights[i] = m_i * p_hat * W_X_i;
         p_hatx[i] = p_hat;
-        p_x[i] = p_light;
         r.w_sum += weights[i];
     }
 
@@ -1502,6 +1522,7 @@ ReSTIR_Reservoir resample(vec3[M] samples, int count, Isect isect, vec2 randUV) 
         }
     }
     r.Y = samples[selectedIdx];
+    r.p_hat = p_hatx[selectedIdx];
     r.W_Y = r.w_sum / p_hatx[selectedIdx];
     return r;
 }
@@ -1521,9 +1542,10 @@ void main() {
     }
 
     vec3[M] samples;
+    float[M] contrib_weights;
     int count;
-    random_samples(samples, count, isect, randUV);
-    ReSTIR_Reservoir r = resample(samples, count, isect, randUV);
+    random_samples(samples, contrib_weights, count, isect, randUV);
+    ReSTIR_Reservoir r = resample(samples, contrib_weights, count, isect, randUV, 0, 0.0);
     vec3 finalColor = shade_reservoir(r, isect);
 
     fragColor = vec4(finalColor, 1.0);

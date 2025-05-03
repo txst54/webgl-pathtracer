@@ -3,6 +3,7 @@
 struct ReSTIR_Reservoir {
     vec3 Y;      // light direction or position
     float W_Y;   // selected sample weight
+    float p_hat;
     float w_sum; // total weight of all candidates
     float c;    //sample count
 };
@@ -19,13 +20,14 @@ ReSTIR_Reservoir initializeReservoir() {
 ReSTIR_Reservoir unpackReservoir(vec4 data1, vec4 data2) {
     ReSTIR_Reservoir r;
     r.Y = data1.rgb;        // using .rgb for vec3
+    r.p_hat = data1.a;
     r.W_Y = data2.r;
     r.w_sum = data2.g;
     return r;
 }
 
 vec4 packReservoir1(ReSTIR_Reservoir r) {
-    return vec4(r.Y, 1.0); // 1.0 is a placeholder alpha
+    return vec4(r.Y, r.p_hat); // 1.0 is a placeholder alpha
 }
 
 vec4 packReservoir2(ReSTIR_Reservoir r) {
