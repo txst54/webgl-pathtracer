@@ -7,7 +7,7 @@ uniform float uTime;
 in vec3 initialRay;
 out vec4 fragColor;
 
-#define M 9
+#define M 10
 #define PI 3.14159265359
 
 // use_macro{CONSTANTS}
