@@ -26,7 +26,7 @@ float epsilon = 0.0001;
 float lightSize = 1.0;
 float pi = 3.14159265359;
 float maxBounces = 100.0;
-vec3 ReSTIR_lightEmission = vec3(1.0); // Light intensity/colorvec2 intersectCube(vec3 origin, vec3 ray, vec3 cubeMin, vec3 cubeMax) {
+vec3 ReSTIR_lightEmission = vec3(10.0); // Light intensity/colorvec2 intersectCube(vec3 origin, vec3 ray, vec3 cubeMin, vec3 cubeMax) {
     vec3 tMin = (cubeMin - origin) / ray;
     vec3 tMax = (cubeMax - origin) / ray;
     vec3 t1 = min(tMin, tMax);
@@ -356,7 +356,7 @@ float epsilon = 0.0001;
 float lightSize = 1.0;
 float pi = 3.14159265359;
 float maxBounces = 100.0;
-vec3 ReSTIR_lightEmission = vec3(1.0); // Light intensity/colorfloat random(vec3 scale, float seed) {
+vec3 ReSTIR_lightEmission = vec3(10.0); // Light intensity/colorfloat random(vec3 scale, float seed) {
     return fract(sin(dot(gl_FragCoord.xyz + seed, scale)) * 43758.5453 + seed);
 }
 
@@ -554,7 +554,7 @@ float epsilon = 0.0001;
 float lightSize = 1.0;
 float pi = 3.14159265359;
 float maxBounces = 100.0;
-vec3 ReSTIR_lightEmission = vec3(1.0); // Light intensity/colorfloat intersectSphere(vec3 origin, vec3 ray, vec3 sphereCenter, float sphereRadius) {
+vec3 ReSTIR_lightEmission = vec3(10.0); // Light intensity/colorfloat intersectSphere(vec3 origin, vec3 ray, vec3 sphereCenter, float sphereRadius) {
     vec3 toSphere = origin - sphereCenter;
     float a = dot(ray, ray);
     float b = 2.0 * dot(toSphere, ray);
@@ -726,17 +726,16 @@ vec3 sampleSphere(vec3 center, float radius, vec2 u) {
     return center + radius * vec3(cos(theta) * sin(phi), sin(theta) * sin(phi), cos(phi));
 }
 
-// Improved shadow ray test
 bool isVisible(vec3 from, vec3 to) {
     vec3 dir = normalize(to - from);
     float dist = length(to - from);
 
-    // Offset the ray origin slightly to avoid self-intersection
-    Isect shadowIsect = intersect(dir, from + dir * 0.001);
+    vec3 origin = from + dir * epsilon;
+    Isect shadowIsect = intersect(dir, origin);
 
-    // No intersection or intersection beyond target point
-    return shadowIsect.t < 0.0;
+    return shadowIsect.t < 0.0 || shadowIsect.t > dist - epsilon;
 }
+
 
 float compute_p(vec3 a, vec3 b) {
     float dist2 = dot(a - b, a - b);
@@ -754,14 +753,17 @@ float compute_p(vec3 a, vec3 b) {
 
 vec3 compute_f(vec3 a, vec3 b, vec3 normal, vec3 albedo) {
     vec3 dir_a_to_b = normalize(b - a);
-    vec3 light_normal = normalize(b - light);
+    // vec3 light_normal = normalize(b - light);
     float cosTheta_a = max(dot(normal, dir_a_to_b), 0.0);
-    float cosTheta_b = max(dot(light_normal, -dir_a_to_b), 0.0);
+    // float cosTheta_b = max(dot(light_normal, -dir_a_to_b), 0.0);
     float dist2 = dot(b - a, b - a);
-    float geometry_term = (cosTheta_a * cosTheta_b) / dist2;
+    // float geometry_term = (cosTheta_a * cosTheta_b) / dist2;
     vec3 brdf = albedo / pi;
     float visibility_term = isVisible(a, b) ? 1.0 : 0.0;
-    return brdf * ReSTIR_lightEmission * geometry_term * visibility_term;
+    // Our target function does not include the geometry term because we're integrating
+    // in solid angle. The geometry term in the target function ( / in the integrand) is only
+    // for surface area direct lighting integration
+    return brdf * ReSTIR_lightEmission * cosTheta_a * visibility_term;
 }
 
 float compute_p_hat(vec3 a, vec3 b, vec3 normal, vec3 albedo) {
@@ -770,7 +772,8 @@ float compute_p_hat(vec3 a, vec3 b, vec3 normal, vec3 albedo) {
 }
 
 vec3 shade_reservoir(ReSTIR_Reservoir r, Isect isect) {
-    return compute_f(isect.position, r.Y, isect.normal, isect.albedo) * r.W_Y;
+    // return vec3(r.W_Y);
+    return compute_f(isect.position, r.Y, isect.normal, isect.albedo);
 }
 
 void random_samples(out vec3[M] samples, out float[M] contrib_weights, Isect isect, vec2 randUV) {
@@ -780,8 +783,6 @@ void random_samples(out vec3[M] samples, out float[M] contrib_weights, Isect ise
         vec2 u = vec2(rand(randUV, seed1), rand(randUV, seed2));
 
         vec3 lightPos = sampleSphere(light, lightSize, u);
-        vec3 lightDir = normalize(lightPos - isect.position);
-        // if (dot(isect.normal, lightDir) <= 0.0 || !isVisible(isect.position, lightPos)) continue;
 
         samples[i] = lightPos;
         contrib_weights[i] = 1.0 / compute_p(isect.position, lightPos);
@@ -793,7 +794,7 @@ ReSTIR_Reservoir resample(vec3[M] samples, float[M] contrib_weights, Isect isect
     ReSTIR_Reservoir r = initializeReservoir();
     if (isect.isLight) {
         r.Y = ReSTIR_lightEmission; // Increased light emission value
-        r.W_Y = 0.0;
+        r.W_Y = 1.0;
         return r;
     }
 
@@ -893,7 +894,7 @@ float epsilon = 0.0001;
 float lightSize = 1.0;
 float pi = 3.14159265359;
 float maxBounces = 100.0;
-vec3 ReSTIR_lightEmission = vec3(1.0); // Light intensity/colorfloat intersectSphere(vec3 origin, vec3 ray, vec3 sphereCenter, float sphereRadius) {
+vec3 ReSTIR_lightEmission = vec3(10.0); // Light intensity/colorfloat intersectSphere(vec3 origin, vec3 ray, vec3 sphereCenter, float sphereRadius) {
     vec3 toSphere = origin - sphereCenter;
     float a = dot(ray, ray);
     float b = 2.0 * dot(toSphere, ray);
@@ -1024,17 +1025,16 @@ vec3 sampleSphere(vec3 center, float radius, vec2 u) {
     return center + radius * vec3(cos(theta) * sin(phi), sin(theta) * sin(phi), cos(phi));
 }
 
-// Improved shadow ray test
 bool isVisible(vec3 from, vec3 to) {
     vec3 dir = normalize(to - from);
     float dist = length(to - from);
 
-    // Offset the ray origin slightly to avoid self-intersection
-    Isect shadowIsect = intersect(dir, from + dir * 0.001);
+    vec3 origin = from + dir * epsilon;
+    Isect shadowIsect = intersect(dir, origin);
 
-    // No intersection or intersection beyond target point
-    return shadowIsect.t < 0.0;
+    return shadowIsect.t < 0.0 || shadowIsect.t > dist - epsilon;
 }
+
 
 float compute_p(vec3 a, vec3 b) {
     float dist2 = dot(a - b, a - b);
@@ -1052,14 +1052,17 @@ float compute_p(vec3 a, vec3 b) {
 
 vec3 compute_f(vec3 a, vec3 b, vec3 normal, vec3 albedo) {
     vec3 dir_a_to_b = normalize(b - a);
-    vec3 light_normal = normalize(b - light);
+    // vec3 light_normal = normalize(b - light);
     float cosTheta_a = max(dot(normal, dir_a_to_b), 0.0);
-    float cosTheta_b = max(dot(light_normal, -dir_a_to_b), 0.0);
+    // float cosTheta_b = max(dot(light_normal, -dir_a_to_b), 0.0);
     float dist2 = dot(b - a, b - a);
-    float geometry_term = (cosTheta_a * cosTheta_b) / dist2;
+    // float geometry_term = (cosTheta_a * cosTheta_b) / dist2;
     vec3 brdf = albedo / pi;
     float visibility_term = isVisible(a, b) ? 1.0 : 0.0;
-    return brdf * ReSTIR_lightEmission * geometry_term * visibility_term;
+    // Our target function does not include the geometry term because we're integrating
+    // in solid angle. The geometry term in the target function ( / in the integrand) is only
+    // for surface area direct lighting integration
+    return brdf * ReSTIR_lightEmission * cosTheta_a * visibility_term;
 }
 
 float compute_p_hat(vec3 a, vec3 b, vec3 normal, vec3 albedo) {
@@ -1068,7 +1071,8 @@ float compute_p_hat(vec3 a, vec3 b, vec3 normal, vec3 albedo) {
 }
 
 vec3 shade_reservoir(ReSTIR_Reservoir r, Isect isect) {
-    return compute_f(isect.position, r.Y, isect.normal, isect.albedo) * r.W_Y;
+    // return vec3(r.W_Y);
+    return compute_f(isect.position, r.Y, isect.normal, isect.albedo);
 }
 
 void random_samples(out vec3[M] samples, out float[M] contrib_weights, Isect isect, vec2 randUV) {
@@ -1078,8 +1082,6 @@ void random_samples(out vec3[M] samples, out float[M] contrib_weights, Isect ise
         vec2 u = vec2(rand(randUV, seed1), rand(randUV, seed2));
 
         vec3 lightPos = sampleSphere(light, lightSize, u);
-        vec3 lightDir = normalize(lightPos - isect.position);
-        // if (dot(isect.normal, lightDir) <= 0.0 || !isVisible(isect.position, lightPos)) continue;
 
         samples[i] = lightPos;
         contrib_weights[i] = 1.0 / compute_p(isect.position, lightPos);
@@ -1091,7 +1093,7 @@ ReSTIR_Reservoir resample(vec3[M] samples, float[M] contrib_weights, Isect isect
     ReSTIR_Reservoir r = initializeReservoir();
     if (isect.isLight) {
         r.Y = ReSTIR_lightEmission; // Increased light emission value
-        r.W_Y = 0.0;
+        r.W_Y = 1.0;
         return r;
     }
 
@@ -1209,7 +1211,7 @@ float epsilon = 0.0001;
 float lightSize = 1.0;
 float pi = 3.14159265359;
 float maxBounces = 100.0;
-vec3 ReSTIR_lightEmission = vec3(1.0); // Light intensity/colorfloat intersectSphere(vec3 origin, vec3 ray, vec3 sphereCenter, float sphereRadius) {
+vec3 ReSTIR_lightEmission = vec3(10.0); // Light intensity/colorfloat intersectSphere(vec3 origin, vec3 ray, vec3 sphereCenter, float sphereRadius) {
     vec3 toSphere = origin - sphereCenter;
     float a = dot(ray, ray);
     float b = 2.0 * dot(toSphere, ray);
@@ -1381,17 +1383,16 @@ vec3 sampleSphere(vec3 center, float radius, vec2 u) {
     return center + radius * vec3(cos(theta) * sin(phi), sin(theta) * sin(phi), cos(phi));
 }
 
-// Improved shadow ray test
 bool isVisible(vec3 from, vec3 to) {
     vec3 dir = normalize(to - from);
     float dist = length(to - from);
 
-    // Offset the ray origin slightly to avoid self-intersection
-    Isect shadowIsect = intersect(dir, from + dir * 0.001);
+    vec3 origin = from + dir * epsilon;
+    Isect shadowIsect = intersect(dir, origin);
 
-    // No intersection or intersection beyond target point
-    return shadowIsect.t < 0.0;
+    return shadowIsect.t < 0.0 || shadowIsect.t > dist - epsilon;
 }
+
 
 float compute_p(vec3 a, vec3 b) {
     float dist2 = dot(a - b, a - b);
@@ -1409,14 +1410,17 @@ float compute_p(vec3 a, vec3 b) {
 
 vec3 compute_f(vec3 a, vec3 b, vec3 normal, vec3 albedo) {
     vec3 dir_a_to_b = normalize(b - a);
-    vec3 light_normal = normalize(b - light);
+    // vec3 light_normal = normalize(b - light);
     float cosTheta_a = max(dot(normal, dir_a_to_b), 0.0);
-    float cosTheta_b = max(dot(light_normal, -dir_a_to_b), 0.0);
+    // float cosTheta_b = max(dot(light_normal, -dir_a_to_b), 0.0);
     float dist2 = dot(b - a, b - a);
-    float geometry_term = (cosTheta_a * cosTheta_b) / dist2;
+    // float geometry_term = (cosTheta_a * cosTheta_b) / dist2;
     vec3 brdf = albedo / pi;
     float visibility_term = isVisible(a, b) ? 1.0 : 0.0;
-    return brdf * ReSTIR_lightEmission * geometry_term * visibility_term;
+    // Our target function does not include the geometry term because we're integrating
+    // in solid angle. The geometry term in the target function ( / in the integrand) is only
+    // for surface area direct lighting integration
+    return brdf * ReSTIR_lightEmission * cosTheta_a * visibility_term;
 }
 
 float compute_p_hat(vec3 a, vec3 b, vec3 normal, vec3 albedo) {
@@ -1425,7 +1429,8 @@ float compute_p_hat(vec3 a, vec3 b, vec3 normal, vec3 albedo) {
 }
 
 vec3 shade_reservoir(ReSTIR_Reservoir r, Isect isect) {
-    return compute_f(isect.position, r.Y, isect.normal, isect.albedo) * r.W_Y;
+    // return vec3(r.W_Y);
+    return compute_f(isect.position, r.Y, isect.normal, isect.albedo);
 }
 
 void random_samples(out vec3[M] samples, out float[M] contrib_weights, Isect isect, vec2 randUV) {
@@ -1435,8 +1440,6 @@ void random_samples(out vec3[M] samples, out float[M] contrib_weights, Isect ise
         vec2 u = vec2(rand(randUV, seed1), rand(randUV, seed2));
 
         vec3 lightPos = sampleSphere(light, lightSize, u);
-        vec3 lightDir = normalize(lightPos - isect.position);
-        // if (dot(isect.normal, lightDir) <= 0.0 || !isVisible(isect.position, lightPos)) continue;
 
         samples[i] = lightPos;
         contrib_weights[i] = 1.0 / compute_p(isect.position, lightPos);
@@ -1448,7 +1451,7 @@ ReSTIR_Reservoir resample(vec3[M] samples, float[M] contrib_weights, Isect isect
     ReSTIR_Reservoir r = initializeReservoir();
     if (isect.isLight) {
         r.Y = ReSTIR_lightEmission; // Increased light emission value
-        r.W_Y = 0.0;
+        r.W_Y = 1.0;
         return r;
     }
 
