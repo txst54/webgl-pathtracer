@@ -39,17 +39,17 @@ float compute_p(vec3 a, vec3 b) {
 
 vec3 compute_f(vec3 a, vec3 b, vec3 normal, vec3 albedo) {
     vec3 dir_a_to_b = normalize(b - a);
-    // vec3 light_normal = normalize(b - light);
+    vec3 light_normal = normalize(b - light);
     float cosTheta_a = max(dot(normal, dir_a_to_b), 0.0);
-    // float cosTheta_b = max(dot(light_normal, -dir_a_to_b), 0.0);
+    float cosTheta_b = max(dot(light_normal, -dir_a_to_b), 0.0);
     float dist2 = dot(b - a, b - a);
-    // float geometry_term = (cosTheta_a * cosTheta_b) / dist2;
+    float geometry_term = (cosTheta_a * cosTheta_b) / dist2;
     vec3 brdf = albedo / pi;
     float visibility_term = isVisible(a, b) ? 1.0 : 0.0;
     // Our target function does not include the geometry term because we're integrating
     // in solid angle. The geometry term in the target function ( / in the integrand) is only
     // for surface area direct lighting integration
-    return brdf * ReSTIR_lightEmission * cosTheta_a * visibility_term;
+    return brdf * ReSTIR_lightEmission * cosTheta_a * visibility_term * geometry_term;
 }
 
 float compute_p_hat(vec3 a, vec3 b, vec3 normal, vec3 albedo) {
@@ -59,7 +59,7 @@ float compute_p_hat(vec3 a, vec3 b, vec3 normal, vec3 albedo) {
 
 vec3 shade_reservoir(ReSTIR_Reservoir r, Isect isect) {
     // return vec3(r.W_Y);
-    return compute_f(isect.position, r.Y, isect.normal, isect.albedo) * 2.0;
+    return compute_f(isect.position, r.Y, isect.normal, isect.albedo) * r.W_Y;
 }
 
 void random_samples(out vec3[M] samples, out float[M] contrib_weights, Isect isect, vec2 randUV) {
@@ -71,7 +71,7 @@ void random_samples(out vec3[M] samples, out float[M] contrib_weights, Isect ise
         vec3 lightPos = sampleSphere(light, lightSize, u);
 
         samples[i] = lightPos;
-        contrib_weights[i] = 1.0 / compute_p(isect.position, lightPos);
+        contrib_weights[i] = compute_p(isect.position, lightPos);
     }
 }
 
@@ -92,7 +92,7 @@ ReSTIR_Reservoir resample(vec3[M] samples, float[M] contrib_weights, int count, 
         if (i >= count) {
             break;
         }
-        p_sum += 1.0 / contrib_weights[i]; // (1 / (1 / p(x)));
+        p_sum += contrib_weights[i]; // (1 / (1 / p(x)));
     }
 
     for (int i = 0; i < M; i++) {
@@ -100,11 +100,11 @@ ReSTIR_Reservoir resample(vec3[M] samples, float[M] contrib_weights, int count, 
             break;
         }
         float p_hat = compute_p_hat(isect.position, samples[i], isect.normal, isect.albedo);
-        float p_i = 1.0 / contrib_weights[i];
+        float p_i = contrib_weights[i];
         float temporal_weight = i == 0 ? 1.0 : aux.x;
         // float m_i = mis_type == 0 ? p_i / p_sum : mis_type == 1 ? p_hat / aux.x : temporal_weight * p_hat / aux.y;
         float m_i = 1.0 / float(count);
-        float W_X_i = contrib_weights[i];
+        float W_X_i = 1.0 / contrib_weights[i];
         weights[i] = m_i * p_hat * W_X_i;
         p_hatx[i] = p_hat;
         r.w_sum += weights[i];
