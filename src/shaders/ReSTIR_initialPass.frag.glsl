@@ -37,7 +37,7 @@ void main() {
     vec3[M] samples;
     float[M] contrib_weights;
     random_samples(samples, contrib_weights, isect, randUV);
-    ReSTIR_Reservoir r = resample(samples, contrib_weights, isect, randUV, 0, 0.0);
+    ReSTIR_Reservoir r = resample(samples, contrib_weights, isect, randUV, 0, vec3(0.0));
     out_ReservoirData1 = packReservoir1(r);
     out_ReservoirData2 = packReservoir2(r);
 }

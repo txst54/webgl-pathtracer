@@ -5,9 +5,12 @@ uniform vec3 uEye;
 uniform vec2 uRes;
 uniform float uTime;
 in vec3 initialRay;
-out vec4 fragColor;
+layout(location = 2) out vec4 fragColor;
 uniform sampler2D uReservoirData1;
 uniform sampler2D uReservoirData2;
+
+layout(location = 0) out vec4 out_ReservoirData1;
+layout(location = 1) out vec4 out_ReservoirData2;
 
 #define M 10
 
@@ -55,18 +58,21 @@ void main() {
             vec4 uCandidate2 = texture(uReservoirData2, uv);
 
             ReSTIR_Reservoir candidate = unpackReservoir(uCandidate1, uCandidate2);
-            if (abs(r.t - candidate.t) > 0.1 * r.t) continue;
+            // if (abs(r.t - candidate.t) > 0.1) continue;
             // generate X_i
             if (count < M) {
                 samples[count] = candidate.Y;
                 contrib_weights[count] = candidate.W_Y;
                 sum_p_hat += candidate.p_hat;
                 rout_c += candidate.c;
+                count++;
             }
         }
     }
-    ReSTIR_Reservoir r_out = resample(samples, contrib_weights, isect, randUV, 1, vec3(sum_p_hat));
+    ReSTIR_Reservoir r_out = resample(samples, contrib_weights, count, isect, randUV, 1, vec3(sum_p_hat));
     r_out.c = min(512.0, rout_c);
     vec3 finalColor = shade_reservoir(r_out, isect);
     fragColor = vec4(finalColor, 1.0);
+    out_ReservoirData1 = packReservoir1(r_out);
+    out_ReservoirData2 = packReservoir2(r_out);
 }
