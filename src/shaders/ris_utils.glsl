@@ -59,7 +59,7 @@ float compute_p_hat(vec3 a, vec3 b, vec3 normal, vec3 albedo) {
 
 vec3 shade_reservoir(ReSTIR_Reservoir r, Isect isect) {
     // return vec3(r.W_Y);
-    return compute_f(isect.position, r.Y, isect.normal, isect.albedo) * r.W_Y;
+    return compute_f(isect.position, r.Y, isect.normal, isect.albedo) * 2.0;
 }
 
 void random_samples(out vec3[M] samples, out float[M] contrib_weights, Isect isect, vec2 randUV) {

@@ -9,7 +9,7 @@ out vec4 fragColor;
 uniform sampler2D uReservoirData1;
 uniform sampler2D uReservoirData2;
 
-#define M 10
+#define M 1
 #define MAX_NEIGHBORS 25
 
 // use_macro{RAND_LIB}
