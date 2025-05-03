@@ -10,6 +10,7 @@ uniform sampler2D uReservoirData1;
 uniform sampler2D uReservoirData2;
 
 #define M 10
+#define MAX_NEIGHBORS 25
 
 // use_macro{RAND_LIB}
 // use_macro{CONSTANTS}
@@ -36,15 +37,16 @@ void main() {
         fragColor = vec4(ReSTIR_lightEmission, 1.0);
         return;
     }
-    vec3[M] samples;
-    float[M] contrib_weights;
+    ReSTIR_Reservoir r_out = initializeReservoir();
+    r_out.w_sum = 0.0;
+    ReSTIR_Reservoir[MAX_NEIGHBORS] candidates;
     float sum_p_hat = 0.0;
-    int count;
-    float rout_c;
+    int count = 0;
 
     float randNum = random(vec3(1.0), gl_FragCoord.x * 29.57 + gl_FragCoord.y * 65.69 + uTime * 82.21);
-    for (int dx = -1; dx <= 1; ++dx) {
-        for (int dy = -1; dy <= 1; ++dy) {
+    float startingSeed = gl_FragCoord.x * 29.57 + gl_FragCoord.y * 65.69 + uTime * 82.21;
+    for (int dx = -2; dx <= 2; ++dx) {
+        for (int dy = -2; dy <= 2; ++dy) {
             vec2 neighbor = gl_FragCoord.xy + vec2(dx, dy);
             if (neighbor.x < 0.0 || neighbor.y < 0.0 ||
             neighbor.x >= uRes.x || neighbor.y >= uRes.y) continue;
@@ -54,19 +56,30 @@ void main() {
             vec4 uCandidate1 = texture(uReservoirData1, uv);
             vec4 uCandidate2 = texture(uReservoirData2, uv);
 
-            ReSTIR_Reservoir candidate = unpackReservoir(uCandidate1, uCandidate2);
-            if (abs(r.t - candidate.t) > 0.1 * r.t) continue;
+            candidates[count] = unpackReservoir(uCandidate1, uCandidate2);
+            // if (abs(r.t - candidate.t) > 0.1 * r.t) continue;
             // generate X_i
-            if (count < M) {
-                samples[count] = candidate.Y;
-                contrib_weights[count] = candidate.W_Y;
-                sum_p_hat += candidate.p_hat;
-                rout_c += candidate.c;
-            }
+            sum_p_hat += candidates[count].p_hat;
+            r_out.c += candidates[count].c;
+            count++;
         }
     }
-    ReSTIR_Reservoir r_out = resample(samples, contrib_weights, 9, isect, randUV, 1, vec3(sum_p_hat));
-    r_out.c = min(512.0, rout_c);
+    for (int i = 0; i < MAX_NEIGHBORS; i++) {
+        if (i >= count) break;
+        ReSTIR_Reservoir r_i = candidates[i];
+        float m_i = r_i.p_hat/sum_p_hat;
+        float p_hat_at_center = compute_p_hat(isect.position, r_i.Y, isect.normal, isect.albedo);
+        float w_i = m_i * p_hat_at_center * r_i.W_Y;
+        float randint = rand(r_i.Y.xy, startingSeed + float(i));
+        r_out.w_sum += w_i;
+        if (randint < w_i / r_out.w_sum) {
+            r_out.Y = r_i.Y;
+            r_out.p_hat = p_hat_at_center;
+        }
+    }
+    r_out.W_Y = 1.0 / r_out.p_hat * r_out.w_sum;
+    // ReSTIR_Reservoir r_out = resample(samples, contrib_weights, count, isect, randUV, 1, vec3(sum_p_hat));
+    r_out.c = min(512.0, r_out.c);
     vec3 finalColor = shade_reservoir(r_out, isect);
     fragColor = vec4(finalColor, 1.0);
 }

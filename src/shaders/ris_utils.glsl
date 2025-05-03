@@ -1,7 +1,4 @@
 //begin_macro{RIS_UTIL}
-float rand(vec2 co, float seed) {
-    return fract(sin(dot(co.xy + seed, vec2(12.9898, 78.233))) * 43758.5453);
-}
 
 // Balance heuristic for MIS weights
 float balanceHeuristic(float pI, float pJ, float M_I, float M_J) {
@@ -32,7 +29,7 @@ float compute_p(vec3 a, vec3 b) {
     vec3 dir_b_to_a = normalize(a - b);
     vec3 lightNormal = normalize(b - light);
     float cosBeta = max(0.0, dot(lightNormal, dir_b_to_a));
-    if (cosBeta == 0.0) return 0.0;
+    if (cosBeta == 0.0) return epsilon;
     float area = 4.0 * pi * lightSize * lightSize;
     float pArea = 1.0 / area;
     // Conversion factor from area to solid angle pdf is cos(theta)/dist2
@@ -62,7 +59,7 @@ float compute_p_hat(vec3 a, vec3 b, vec3 normal, vec3 albedo) {
 
 vec3 shade_reservoir(ReSTIR_Reservoir r, Isect isect) {
     // return vec3(r.W_Y);
-    return compute_f(isect.position, r.Y, isect.normal, isect.albedo);
+    return compute_f(isect.position, r.Y, isect.normal, isect.albedo) * r.W_Y;
 }
 
 void random_samples(out vec3[M] samples, out float[M] contrib_weights, Isect isect, vec2 randUV) {
@@ -82,7 +79,7 @@ void random_samples(out vec3[M] samples, out float[M] contrib_weights, Isect ise
 ReSTIR_Reservoir resample(vec3[M] samples, float[M] contrib_weights, int count, Isect isect, vec2 randUV, int mis_type, vec3 aux) {
     ReSTIR_Reservoir r = initializeReservoir();
     if (isect.isLight) {
-        r.Y = ReSTIR_lightEmission; // Increased light emission value
+        r.Y = light; // Increased light emission value
         r.W_Y = 1.0;
         return r;
     }
@@ -105,7 +102,8 @@ ReSTIR_Reservoir resample(vec3[M] samples, float[M] contrib_weights, int count, 
         float p_hat = compute_p_hat(isect.position, samples[i], isect.normal, isect.albedo);
         float p_i = 1.0 / contrib_weights[i];
         float temporal_weight = i == 0 ? 1.0 : aux.x;
-        float m_i = mis_type == 0 ? 1.0 / float(M) : mis_type == 1 ? p_hat / aux.x : temporal_weight * p_hat / aux.y;
+        // float m_i = mis_type == 0 ? p_i / p_sum : mis_type == 1 ? p_hat / aux.x : temporal_weight * p_hat / aux.y;
+        float m_i = 1.0 / float(count);
         float W_X_i = contrib_weights[i];
         weights[i] = m_i * p_hat * W_X_i;
         p_hatx[i] = p_hat;
@@ -130,7 +128,11 @@ ReSTIR_Reservoir resample(vec3[M] samples, float[M] contrib_weights, int count, 
     r.Y = samples[selectedIdx];
     r.t = isect.t;
     r.p_hat = p_hatx[selectedIdx];
-    r.W_Y = r.w_sum / p_hatx[selectedIdx];
+    if (r.w_sum < epsilon || p_hatx[selectedIdx] < epsilon) {
+        r.W_Y = 0.0;
+    } else {
+        r.W_Y = 1.0 / p_hatx[selectedIdx] * r.w_sum;
+    }
     r.c = 1.0;
     return r;
 }

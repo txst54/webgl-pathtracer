@@ -3,6 +3,10 @@ float random(vec3 scale, float seed) {
     return fract(sin(dot(gl_FragCoord.xyz + seed, scale)) * 43758.5453 + seed);
 }
 
+float rand(vec2 co, float seed) {
+    return fract(sin(dot(co.xy + seed, vec2(12.9898, 78.233))) * 43758.5453);
+}
+
 vec3 uniformlyRandomDirection(float seed) {
     float u = random(vec3(12.9898, 78.233, 151.7182), seed);
     float v = random(vec3(63.7264, 10.873, 623.6736), seed);
