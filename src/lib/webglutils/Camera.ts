@@ -1,5 +1,6 @@
 import { Mat4, Mat3, Vec3 } from "../TSM.js";
 import { Quat } from "../tsm/Quat.js";
+import {Matrix4} from "../threejs/src/math/Matrix4";
 //import { Ray } from "../../ray/Ray"
 
 export class RayCamera {
@@ -55,6 +56,8 @@ export class Camera {
   private _aspect: number; // aspect ratio
   private _zNear: number; // near plane distance
   private _zFar: number; // far plane distance
+  private viewMatrixPrevious: Mat4;
+
 
   /**
    * Camera::constructor
@@ -101,6 +104,7 @@ export class Camera {
     console.assert(this._zNear != null);
     this._zFar = zFar;
     console.assert(this._zFar != null);
+    this.viewMatrixPrevious = this.viewMatrix();
   }
 
   public setKeyFrame(p: Vec3, o: Quat, d: number) {
@@ -348,5 +352,18 @@ export class Camera {
     );
     console.assert(m != null);
     return m;
+  }
+
+  public getViewMatrixPrevious() {
+    const res = new Float32Array(16);
+    for (let i = 0; i < 4; i++) {
+      for (let j = 0; j < 4; j++) {
+        res[i * 4 + j] = this.viewMatrixPrevious.col(i)[j];
+      }
+    }
+    return res;
+  }
+  public updateViewMatrixNext() {
+      this.viewMatrixPrevious = this.viewMatrix();
   }
 }
