@@ -22,7 +22,7 @@ bool isVisible(vec3 from, vec3 to) {
     vec3 origin = from + dir * epsilon;
     Isect shadowIsect = intersect(dir, origin);
 
-    return shadowIsect.t < 0.0 || shadowIsect.t > dist - epsilon;
+    return shadowIsect.isLight;
 }
 
 

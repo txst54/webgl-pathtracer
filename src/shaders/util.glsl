@@ -25,9 +25,9 @@ float sphereRadius = 1.0;
 vec3 light = vec3(0.0, 5.0, 0.0);
 float lightIntensity = 1.0;
 float infinity = 10000.0;
-float epsilon = 0.0001;
+float epsilon = 0.00001;
 float lightSize = 1.0;
 float pi = 3.14159265359;
 float maxBounces = 100.0;
-vec3 ReSTIR_lightEmission = vec3(10.0); // Light intensity/color
+vec3 ReSTIR_lightEmission = vec3(1.0); // Light intensity/color
 // end_macro

@@ -22,11 +22,11 @@ float sphereRadius = 1.0;
 vec3 light = vec3(0.0, 5.0, 0.0);
 float lightIntensity = 1.0;
 float infinity = 10000.0;
-float epsilon = 0.0001;
+float epsilon = 0.00001;
 float lightSize = 1.0;
 float pi = 3.14159265359;
 float maxBounces = 100.0;
-vec3 ReSTIR_lightEmission = vec3(10.0); // Light intensity/colorvec2 intersectCube(vec3 origin, vec3 ray, vec3 cubeMin, vec3 cubeMax) {
+vec3 ReSTIR_lightEmission = vec3(1.0); // Light intensity/colorvec2 intersectCube(vec3 origin, vec3 ray, vec3 cubeMin, vec3 cubeMax) {
     vec3 tMin = (cubeMin - origin) / ray;
     vec3 tMax = (cubeMax - origin) / ray;
     vec3 t1 = min(tMin, tMax);
@@ -352,11 +352,11 @@ float sphereRadius = 1.0;
 vec3 light = vec3(0.0, 5.0, 0.0);
 float lightIntensity = 1.0;
 float infinity = 10000.0;
-float epsilon = 0.0001;
+float epsilon = 0.00001;
 float lightSize = 1.0;
 float pi = 3.14159265359;
 float maxBounces = 100.0;
-vec3 ReSTIR_lightEmission = vec3(10.0); // Light intensity/colorfloat random(vec3 scale, float seed) {
+vec3 ReSTIR_lightEmission = vec3(1.0); // Light intensity/colorfloat random(vec3 scale, float seed) {
     return fract(sin(dot(gl_FragCoord.xyz + seed, scale)) * 43758.5453 + seed);
 }
 
@@ -543,11 +543,11 @@ float sphereRadius = 1.0;
 vec3 light = vec3(0.0, 5.0, 0.0);
 float lightIntensity = 1.0;
 float infinity = 10000.0;
-float epsilon = 0.0001;
+float epsilon = 0.00001;
 float lightSize = 1.0;
 float pi = 3.14159265359;
 float maxBounces = 100.0;
-vec3 ReSTIR_lightEmission = vec3(10.0); // Light intensity/colorfloat random(vec3 scale, float seed) {
+vec3 ReSTIR_lightEmission = vec3(1.0); // Light intensity/colorfloat random(vec3 scale, float seed) {
     return fract(sin(dot(gl_FragCoord.xyz + seed, scale)) * 43758.5453 + seed);
 }
 
@@ -704,11 +704,11 @@ float sphereRadius = 1.0;
 vec3 light = vec3(0.0, 5.0, 0.0);
 float lightIntensity = 1.0;
 float infinity = 10000.0;
-float epsilon = 0.0001;
+float epsilon = 0.00001;
 float lightSize = 1.0;
 float pi = 3.14159265359;
 float maxBounces = 100.0;
-vec3 ReSTIR_lightEmission = vec3(10.0); // Light intensity/colorfloat intersectSphere(vec3 origin, vec3 ray, vec3 sphereCenter, float sphereRadius) {
+vec3 ReSTIR_lightEmission = vec3(1.0); // Light intensity/colorfloat intersectSphere(vec3 origin, vec3 ray, vec3 sphereCenter, float sphereRadius) {
     vec3 toSphere = origin - sphereCenter;
     float a = dot(ray, ray);
     float b = 2.0 * dot(toSphere, ray);
@@ -887,7 +887,7 @@ bool isVisible(vec3 from, vec3 to) {
     vec3 origin = from + dir * epsilon;
     Isect shadowIsect = intersect(dir, origin);
 
-    return shadowIsect.t < 0.0 || shadowIsect.t > dist - epsilon;
+    return shadowIsect.isLight;
 }
 
 
@@ -1043,11 +1043,11 @@ float sphereRadius = 1.0;
 vec3 light = vec3(0.0, 5.0, 0.0);
 float lightIntensity = 1.0;
 float infinity = 10000.0;
-float epsilon = 0.0001;
+float epsilon = 0.00001;
 float lightSize = 1.0;
 float pi = 3.14159265359;
 float maxBounces = 100.0;
-vec3 ReSTIR_lightEmission = vec3(10.0); // Light intensity/colorfloat intersectSphere(vec3 origin, vec3 ray, vec3 sphereCenter, float sphereRadius) {
+vec3 ReSTIR_lightEmission = vec3(1.0); // Light intensity/colorfloat intersectSphere(vec3 origin, vec3 ray, vec3 sphereCenter, float sphereRadius) {
     vec3 toSphere = origin - sphereCenter;
     float a = dot(ray, ray);
     float b = 2.0 * dot(toSphere, ray);
@@ -1185,7 +1185,7 @@ bool isVisible(vec3 from, vec3 to) {
     vec3 origin = from + dir * epsilon;
     Isect shadowIsect = intersect(dir, origin);
 
-    return shadowIsect.t < 0.0 || shadowIsect.t > dist - epsilon;
+    return shadowIsect.isLight;
 }
 
 
@@ -1370,11 +1370,11 @@ float sphereRadius = 1.0;
 vec3 light = vec3(0.0, 5.0, 0.0);
 float lightIntensity = 1.0;
 float infinity = 10000.0;
-float epsilon = 0.0001;
+float epsilon = 0.00001;
 float lightSize = 1.0;
 float pi = 3.14159265359;
 float maxBounces = 100.0;
-vec3 ReSTIR_lightEmission = vec3(10.0); // Light intensity/colorfloat intersectSphere(vec3 origin, vec3 ray, vec3 sphereCenter, float sphereRadius) {
+vec3 ReSTIR_lightEmission = vec3(1.0); // Light intensity/colorfloat intersectSphere(vec3 origin, vec3 ray, vec3 sphereCenter, float sphereRadius) {
     vec3 toSphere = origin - sphereCenter;
     float a = dot(ray, ray);
     float b = 2.0 * dot(toSphere, ray);
@@ -1553,7 +1553,7 @@ bool isVisible(vec3 from, vec3 to) {
     vec3 origin = from + dir * epsilon;
     Isect shadowIsect = intersect(dir, origin);
 
-    return shadowIsect.t < 0.0 || shadowIsect.t > dist - epsilon;
+    return shadowIsect.isLight;
 }
 
 
@@ -1742,11 +1742,11 @@ float sphereRadius = 1.0;
 vec3 light = vec3(0.0, 5.0, 0.0);
 float lightIntensity = 1.0;
 float infinity = 10000.0;
-float epsilon = 0.0001;
+float epsilon = 0.00001;
 float lightSize = 1.0;
 float pi = 3.14159265359;
 float maxBounces = 100.0;
-vec3 ReSTIR_lightEmission = vec3(10.0); // Light intensity/colorfloat intersectSphere(vec3 origin, vec3 ray, vec3 sphereCenter, float sphereRadius) {
+vec3 ReSTIR_lightEmission = vec3(1.0); // Light intensity/colorfloat intersectSphere(vec3 origin, vec3 ray, vec3 sphereCenter, float sphereRadius) {
     vec3 toSphere = origin - sphereCenter;
     float a = dot(ray, ray);
     float b = 2.0 * dot(toSphere, ray);
@@ -1884,7 +1884,7 @@ bool isVisible(vec3 from, vec3 to) {
     vec3 origin = from + dir * epsilon;
     Isect shadowIsect = intersect(dir, origin);
 
-    return shadowIsect.t < 0.0 || shadowIsect.t > dist - epsilon;
+    return shadowIsect.isLight;
 }
 
 
@@ -2053,7 +2053,7 @@ uniform float uTime;
 in vec3 initialRay;
 out vec4 fragColor;
 
-#define M 10
+#define M 9
 #define PI 3.14159265359vec3 roomCubeMin = vec3(-10.0, -10.0, -10.0);
 vec3 roomCubeMax = vec3(10.0, 10.0, 10.0);
 vec3 sphereCenter = vec3(0.0, 0.0, 0.0);
@@ -2061,11 +2061,11 @@ float sphereRadius = 1.0;
 vec3 light = vec3(0.0, 5.0, 0.0);
 float lightIntensity = 1.0;
 float infinity = 10000.0;
-float epsilon = 0.0001;
+float epsilon = 0.00001;
 float lightSize = 1.0;
 float pi = 3.14159265359;
 float maxBounces = 100.0;
-vec3 ReSTIR_lightEmission = vec3(10.0); // Light intensity/colorfloat intersectSphere(vec3 origin, vec3 ray, vec3 sphereCenter, float sphereRadius) {
+vec3 ReSTIR_lightEmission = vec3(1.0); // Light intensity/colorfloat intersectSphere(vec3 origin, vec3 ray, vec3 sphereCenter, float sphereRadius) {
     vec3 toSphere = origin - sphereCenter;
     float a = dot(ray, ray);
     float b = 2.0 * dot(toSphere, ray);
@@ -2244,7 +2244,7 @@ bool isVisible(vec3 from, vec3 to) {
     vec3 origin = from + dir * epsilon;
     Isect shadowIsect = intersect(dir, origin);
 
-    return shadowIsect.t < 0.0 || shadowIsect.t > dist - epsilon;
+    return shadowIsect.isLight;
 }
 
 
