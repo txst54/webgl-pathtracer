@@ -10,10 +10,9 @@ float balanceHeuristic(float pI, float pJ, float M_I, float M_J) {
 
 // Sample point on sphere
 vec3 sampleSphere(vec3 center, float radius, vec2 u) {
-    float z = 1.0 - 2.0 * u.x;
-    float phi = 2.0 * pi * u.y;
-    float r = sqrt(1.0 - z * z);
-    return center + radius * vec3(r * cos(phi), r * sin(phi), z);
+    float theta = 2.0 * pi * u.x;
+    float phi = acos(2.0 * u.y - 1.0);
+    return center + radius * vec3(cos(theta) * sin(phi), sin(theta) * sin(phi), cos(phi));
 }
 
 // Improved shadow ray test
@@ -25,74 +24,59 @@ bool isVisible(vec3 from, vec3 to) {
     Isect shadowIsect = intersect(dir, from + dir * 0.001);
 
     // No intersection or intersection beyond target point
-    return shadowIsect.t < 0.0 || shadowIsect.t > dist - 0.001;
+    return shadowIsect.t < 0.0;
 }
 
 float compute_p(vec3 a, vec3 b) {
-    vec3 vec_a_to_b = b - a;
-    float distSq = dot(vec_a_to_b, vec_a_to_b);
-    if (distSq == 0.0) return 0.0;
-    float dist = sqrt(distSq);
-    vec3 dir_a_to_b = vec_a_to_b / dist; // Normalized direction from a to b
-
-    vec3 lightNormal = -normalize(b - light); // Normal at point b on the sphere
-    float cosBeta = max(0.0, dot(lightNormal, dir_a_to_b)); // Cosine between light normal and direction from a to b
-    if (cosBeta == 0.0) return 0.0; // Point on light is not visible or facing away from a
-
-    float area = 4.0 * pi * lightSize * lightSize; // Area of the sphere
-
-    // PDF in area measure
+    float dist2 = dot(a - b, a - b);
+    if (dist2 == 0.0) return 0.0;
+    vec3 dir_b_to_a = normalize(a - b);
+    vec3 lightNormal = normalize(b - light);
+    float cosBeta = max(0.0, dot(lightNormal, dir_b_to_a));
+    if (cosBeta == 0.0) return 0.0;
+    float area = 4.0 * pi * lightSize * lightSize;
     float pArea = 1.0 / area;
-
-    // Conversion factor dA / dOmega = ||b-a||^2 / |(b-a) . n_b|
-    // (b-a) . n_b = vec_a_to_b . lightNormal = dist * dir_a_to_b . lightNormal = dist * cosBeta
-    // Conversion factor is distSq / (dist * cosBeta) = dist / cosBeta
-    float conversionFactor = dist / max(cosBeta, epsilon);
-
+    // Conversion factor from area to solid angle pdf is cos(theta)/dist2
+    float conversionFactor = max(cosBeta, epsilon) / dist2;
     return pArea * conversionFactor;
+}
+
+vec3 compute_f(vec3 a, vec3 b, vec3 normal, vec3 albedo) {
+    vec3 dir_a_to_b = normalize(b - a);
+    vec3 light_normal = normalize(b - light);
+    float cosTheta_a = max(dot(normal, dir_a_to_b), 0.0);
+    float cosTheta_b = max(dot(light_normal, -dir_a_to_b), 0.0);
+    float dist2 = dot(b - a, b - a);
+    float geometry_term = (cosTheta_a * cosTheta_b) / dist2;
+    vec3 brdf = albedo / pi;
+    float visibility_term = isVisible(a, b) ? 1.0 : 0.0;
+    return brdf * ReSTIR_lightEmission * geometry_term * visibility_term;
 }
 
 float compute_p_hat(vec3 a, vec3 b, vec3 normal, vec3 albedo) {
     // computes the light contribution p_hat of a ray from the light position 'b' to the object pos 'a'
-    vec3 lightDir = normalize(b - a);
-    float dist2 = dot(b - a, b - a);
-
-    float cosTheta = max(dot(normal, lightDir), 0.0);
-    vec3 f_r = albedo / pi;
-
-    vec3 contrib = f_r * ReSTIR_lightEmission * cosTheta / dist2;
-    return length(contrib);
+    return length(compute_f(a, b, normal, albedo));
 }
 
 vec3 shade_reservoir(ReSTIR_Reservoir r, Isect isect) {
-    vec3 lightDir = normalize(r.Y - isect.position);
-    float cosTheta = max(dot(isect.normal, lightDir), 0.0);
-    vec3 brdf = isect.albedo / pi;
-    return (brdf * ReSTIR_lightEmission * cosTheta) * r.W_Y;
+    return compute_f(isect.position, r.Y, isect.normal, isect.albedo) * r.W_Y;
 }
 
-void random_samples(out vec3[M] samples, out float[M] contrib_weights, out int count, Isect isect, vec2 randUV) {
-    count = 0;
+void random_samples(out vec3[M] samples, out float[M] contrib_weights, Isect isect, vec2 randUV) {
     for (int i = 0; i < M; i++) {
         float seed1 = float(i) * 0.1 + uTime * 0.5;
         float seed2 = float(i) * 0.2 + uTime * 0.7;
         vec2 u = vec2(rand(randUV, seed1), rand(randUV, seed2));
 
         vec3 lightPos = sampleSphere(light, lightSize, u);
-        vec3 lightDir = normalize(lightPos - isect.position);
 
-        if (dot(isect.normal, lightDir) <= 0.0 || !isVisible(isect.position, lightPos)) continue;
-
-        if (count < M) {
-            samples[count] = lightPos;
-            contrib_weights[count] = 1.0 / compute_p(isect.position, lightPos);
-            count++;
-        }
+        samples[i] = lightPos;
+        contrib_weights[i] = 1.0 / compute_p(isect.position, lightPos);
     }
 }
 
 
-ReSTIR_Reservoir resample(vec3[M] samples, float[M] contrib_weights, int count, Isect isect, vec2 randUV, int mis_type, float aux) {
+ReSTIR_Reservoir resample(vec3[M] samples, float[M] contrib_weights, Isect isect, vec2 randUV, int mis_type, float aux) {
     ReSTIR_Reservoir r = initializeReservoir();
     if (isect.isLight) {
         r.Y = ReSTIR_lightEmission; // Increased light emission value
@@ -100,21 +84,18 @@ ReSTIR_Reservoir resample(vec3[M] samples, float[M] contrib_weights, int count, 
         return r;
     }
 
-    // No valid samples found
-    if (count == 0) {
-        r.Y = vec3(0.0);
-        return r;
-    }
-
     float p_hatx[M];
     float weights[M];
+    float p_sum = 0.0;
 
     for (int i = 0; i < M; i++) {
-        if (i >= count) {
-            break;
-        }
+        p_sum += 1.0 / contrib_weights[i]; // (1 / (1 / p(x)))
+    }
+
+    for (int i = 0; i < M; i++) {
         float p_hat = compute_p_hat(isect.position, samples[i], isect.normal, isect.albedo);
-        float m_i = mis_type == 0 ? 1.0 / float(count) : mis_type == 1 ? p_hat / aux : 1.0;
+        float p_i = 1.0 / contrib_weights[i];
+        float m_i = mis_type == 0 ? 1.0 / float(M) : mis_type == 1 ? p_hat / aux : 1.0;
         float W_X_i = contrib_weights[i];
         weights[i] = m_i * p_hat * W_X_i;
         p_hatx[i] = p_hat;
@@ -125,13 +106,12 @@ ReSTIR_Reservoir resample(vec3[M] samples, float[M] contrib_weights, int count, 
     int selectedIdx = 0;
 
     for (int i = 0; i < M; i++) {
-        if (i >= count) {
-            break;
-        }
-        randint = randint - weights[i]/r.w_sum;
-        if (randint <= 0.0) {
-            selectedIdx = i;
-            break;
+        if (weights[i] > epsilon) {
+            randint = randint - (weights[i]/r.w_sum);
+            if (randint <= 0.0) {
+                selectedIdx = i;
+                break;
+            }
         }
     }
     r.Y = samples[selectedIdx];
