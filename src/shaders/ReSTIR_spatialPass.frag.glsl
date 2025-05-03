@@ -40,6 +40,7 @@ void main() {
     float[M] contrib_weights;
     float sum_p_hat = 0.0;
     int count;
+    float rout_c;
 
     float randNum = random(vec3(1.0), gl_FragCoord.x * 29.57 + gl_FragCoord.y * 65.69 + uTime * 82.21);
     for (int dx = -1; dx <= 1; ++dx) {
@@ -54,16 +55,19 @@ void main() {
             vec4 uCandidate2 = texture(uReservoirData2, uv);
 
             ReSTIR_Reservoir candidate = unpackReservoir(uCandidate1, uCandidate2);
+            if (abs(r.t - candidate.t) > 0.01) continue;
             // generate X_i
             if (count < M) {
                 samples[count] = candidate.Y;
                 contrib_weights[count] = candidate.W_Y;
                 sum_p_hat += candidate.p_hat;
+                rout_c += candidate.c;
                 count++;
             }
         }
     }
     ReSTIR_Reservoir r_out = resample(samples, contrib_weights, count, isect, randUV, 1, sum_p_hat);
+    r_out.c = min(512.0, rout_c);
     vec3 finalColor = shade_reservoir(r_out, isect);
     fragColor = vec4(finalColor, 1.0);
 }

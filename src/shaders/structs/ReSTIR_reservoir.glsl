@@ -6,6 +6,7 @@ struct ReSTIR_Reservoir {
     float p_hat;
     float w_sum; // total weight of all candidates
     float c;    //sample count
+    float t; //geometry info
 };
 
 ReSTIR_Reservoir initializeReservoir() {
@@ -23,15 +24,17 @@ ReSTIR_Reservoir unpackReservoir(vec4 data1, vec4 data2) {
     r.p_hat = data1.a;
     r.W_Y = data2.r;
     r.w_sum = data2.g;
+    r.c = data2.b;
+    r.t = data2.a;
     return r;
 }
 
 vec4 packReservoir1(ReSTIR_Reservoir r) {
-    return vec4(r.Y, r.p_hat); // 1.0 is a placeholder alpha
+    return vec4(r.Y, r.p_hat);
 }
 
 vec4 packReservoir2(ReSTIR_Reservoir r) {
-    return vec4(r.W_Y, r.w_sum, 0.0, 0.0); // zero pad unused values
+    return vec4(r.W_Y, r.w_sum, r.c, r.t); // zero pad unused values
 }
 
 // end_macro

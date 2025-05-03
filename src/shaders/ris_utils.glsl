@@ -135,8 +135,10 @@ ReSTIR_Reservoir resample(vec3[M] samples, float[M] contrib_weights, int count, 
         }
     }
     r.Y = samples[selectedIdx];
+    r.t = isect.t;
     r.p_hat = p_hatx[selectedIdx];
     r.W_Y = r.w_sum / p_hatx[selectedIdx];
+    r.c = 1.0;
     return r;
 }
 //end_macro
