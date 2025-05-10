@@ -18,6 +18,7 @@ layout(location = 1) out vec4 out_ReservoirData2;
 // use_macro{CONSTANTS}
 // use_macro{SPHERE_LIB}
 // use_macro{CUBE_LIB}
+// use_macro{RAY_LIB}
 // use_macro{SCENE_LIB}
 // use_macro{RESTIR_RESERVOIR_LIB}
 // use_macro{RIS_UTIL}

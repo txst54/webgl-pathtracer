@@ -7,7 +7,6 @@ import { GUI } from "./Gui.js";
 import {
   pathTracerVSText,
   pathTracerFSText,
-  initialPassFSText,
   spatialReuseFSText, risFSText, ReSTIR_initialPassFSText, ReSTIR_spatialPassFSText,
   ReSTIR_tspatialPassFSText, ReSTIR_temporalPassFSText, ReSTIRDrawPassFSText
 } from "./Shaders.js";
@@ -25,7 +24,7 @@ export class PathTracer extends CanvasAnimation {
   /*  Rendering */
   // PathTracer
   private pathTracerRenderPass: RenderPass;
-  private startTime: number = performance.now();
+  private startTime: Date = new Date();
 
   // RIS
   private risRenderPass: RenderPass;
@@ -133,9 +132,6 @@ export class PathTracer extends CanvasAnimation {
 
     this.reSTIRSpatialRenderPass = new RenderPass(gl, pathTracerVSText, ReSTIR_spatialPassFSText);
     this.initSpatialReSTIR(this.reSTIRSpatialRenderPass, this.RESTIR_NUM_RESERVOIR_TEXTURES, this.ReSTIR_reservoirTextures);
-
-    this.initialPassRenderPass = new RenderPass(gl, pathTracerVSText, initialPassFSText);
-    this.initNativeRenderPass(this.initialPassRenderPass);
 
     this.spatialRenderPass = new RenderPass(gl, pathTracerVSText, spatialReuseFSText);
     this.initSpatialReSTIR(this.spatialRenderPass, this.NUM_RESERVOIR_TEXTURES, this.reservoirTextures);
@@ -257,7 +253,7 @@ export class PathTracer extends CanvasAnimation {
         });
     renderPass.addUniform("uTime",
         (gl: WebGLRenderingContext, loc: WebGLUniformLocation) => {
-          const timeSinceStart = (performance.now() - this.startTime) * 0.001; // seconds since start
+          const timeSinceStart = (new Date() - this.startTime) * 0.001; // seconds since start
           gl.uniform1f(loc, timeSinceStart);
         });
     renderPass.addUniform("uTextureWeight",

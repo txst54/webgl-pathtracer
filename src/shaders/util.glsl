@@ -24,14 +24,14 @@ vec3 uniformlyRandomVector(float seed) {
 // begin_macro{CONSTANTS}
 vec3 roomCubeMin = vec3(-10.0, -10.0, -10.0);
 vec3 roomCubeMax = vec3(10.0, 10.0, 10.0);
-vec3 sphereCenter = vec3(0.0, 0.0, 0.0);
-float sphereRadius = 1.0;
-vec3 light = vec3(0.0, 5.0, 0.0);
+vec3 sphereCenter = vec3(-3.0, -7.0, 3.0);
+float sphereRadius = 3.0;
+vec3 light = vec3(6.0, -8.0, -6.0);
 float lightIntensity = 1.0;
 float infinity = 10000.0;
 float epsilon = 0.00001;
-float lightSize = 1.0;
+float lightSize = 2.0;
 float pi = 3.14159265359;
 float maxBounces = 100.0;
-vec3 ReSTIR_lightEmission = vec3(1.0); // Light intensity/color
+vec3 ReSTIR_lightEmission = vec3(0.5); // Light intensity/color
 // end_macro

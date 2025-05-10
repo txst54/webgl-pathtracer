@@ -24,17 +24,16 @@ bool isVisible(vec3 from, vec3 to) {
 
 
 float compute_p(vec3 a, vec3 b) {
-    float dist2 = dot(a - b, a - b);
-    if (dist2 == 0.0) return 0.0;
-    vec3 dir_b_to_a = normalize(a - b);
+    vec3 fromLightDir = a - b;
+    float dist2 = dot(fromLightDir, fromLightDir);
+    fromLightDir = normalize(fromLightDir);
     vec3 lightNormal = normalize(b - light);
-    float cosBeta = max(0.0, dot(lightNormal, dir_b_to_a));
-    if (cosBeta == 0.0) return epsilon;
-    float area = 4.0 * pi * lightSize * lightSize;
-    float pArea = 1.0 / area;
-    // Conversion factor from area to solid angle pdf is cos(theta)/dist2
-    float conversionFactor = max(cosBeta, epsilon) / dist2;
-    return pArea * conversionFactor;
+    float cosAtLight = max(0.0, dot(lightNormal, fromLightDir));
+    if (cosAtLight < epsilon || dist2 < epsilon) return epsilon;
+    float surfaceArea = 4.0 * pi * lightSize * lightSize;
+    // Conversion factor from area to solid angle pdf is cos(theta)/dist2 and you divide by conversion factor
+    float pArea = (1.0 / surfaceArea) * (dist2 / cosAtLight);
+    return pArea;
 }
 
 vec3 compute_f(vec3 a, vec3 b, vec3 normal, vec3 albedo) {
@@ -45,11 +44,11 @@ vec3 compute_f(vec3 a, vec3 b, vec3 normal, vec3 albedo) {
     float dist2 = dot(b - a, b - a);
     float geometry_term = (cosTheta_a * cosTheta_b) / dist2;
     vec3 brdf = albedo / pi;
-    float visibility_term = isVisible(a, b) ? 1.0 : 0.0;
+    float visibility_term = shadow(a + normal * epsilon, dir_a_to_b, sphereCenter, sphereRadius);
     // Our target function does not include the geometry term because we're integrating
     // in solid angle. The geometry term in the target function ( / in the integrand) is only
     // for surface area direct lighting integration
-    return brdf * ReSTIR_lightEmission * cosTheta_a * visibility_term * geometry_term;
+    return ReSTIR_lightEmission * cosTheta_a * visibility_term;
 }
 
 float compute_p_hat(vec3 a, vec3 b, vec3 normal, vec3 albedo) {
@@ -75,6 +74,12 @@ void random_samples(out vec3[M] samples, out float[M] contrib_weights, Isect ise
     }
 }
 
+//ReSTIR_Reservoir ris_resample(Isect isect, vec2 randUV) {
+//    ReSTIR_Reservoir r = initializeReservoir();
+//    for (int i = 0; i < M; i++) {
+//        float light_sample_pdf = compute_p(isect.position, light);
+//    }
+//}
 
 ReSTIR_Reservoir resample(vec3[M] samples, float[M] contrib_weights, int count, Isect isect, vec2 randUV, int mis_type, vec3 aux) {
     ReSTIR_Reservoir r = initializeReservoir();

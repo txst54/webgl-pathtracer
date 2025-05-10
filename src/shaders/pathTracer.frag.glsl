@@ -30,20 +30,28 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
         if (isect.t == infinity) {
             break;
         }
-        if (isect.isLight) {
-            accumulatedColor = vec3(lightIntensity);
+        float sampleStrategy = random(vec3(1.0), uTime + float(bounce) * 23.0 + 79.0 + ray.x + ray.y);
+        bool usedCosine = sampleStrategy < 0.5;
+        if (usedCosine) {
+            ray = cosineWeightedDirection(uTime + float(bounce) * 17.0 + ray.x + ray.y, isect.normal);
+        } else {
+            ray = uniformSphereDirection(isect.position, uTime + float(bounce) * 11.0 + ray.x + ray.y, light, lightSize);
+        }
+        origin = isect.position + isect.normal * epsilon;
+        Isect new_isect = intersect(ray, origin);
+        float pdfCosine = pdfCosineWeighted(ray, isect.normal);
+        float pdfLight = pdfUniformSphere(ray, isect.position);
+        float weightCosine = pdfCosine / (pdfCosine + pdfLight + epsilon);
+        float weightLight = pdfLight / (pdfCosine + pdfLight + epsilon);
+        float totalMISWeight = usedCosine ? weightCosine : weightLight;
+        vec3 brdf = isect.albedo / pi;
+        accumulatedColor += isect.isLight ? lightIntensity * colorMask : vec3(0.0);
+        float ndotr = dot(isect.normal, ray);
+        if (ndotr > 0.0) {
+            colorMask *= brdf * abs(ndotr) * totalMISWeight / max(epsilon, usedCosine ? pdfCosine : pdfLight);
+        } else {
             break;
         }
-
-        ray = cosineWeightedDirection(uTime + float(bounce), isect.normal);
-        vec3 toLight = light - isect.position;
-        float diffuse = max(0.0, dot(normalize(toLight), isect.normal));
-
-        float shadowIntensity = shadow(isect.position + isect.normal * epsilon, toLight, sphereCenter, sphereRadius);
-
-        colorMask *= isect.albedo;
-        accumulatedColor += colorMask * (lightIntensity * (1.0 / pi) * diffuse * shadowIntensity);
-        origin = isect.position;
 
         if (bounce > num_iters) {
             break;
@@ -54,12 +62,11 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
 }
 
 void main() {
-    float stableTime = floor(uTime * 10.0) / 10.0;
-    vec3 newLight = light + uniformlyRandomVector(stableTime - 53.0) * lightSize;
+    // vec3 newLight = light + uniformlyRandomVector(uTime - 53.0) * lightSize;
 
     // Avoid using 'texture' as a variable name
     vec3 texColor = texture(uTexture, gl_FragCoord.xy / uRes).rgb;
 
-    vec3 color = mix(calculateColor(uEye, initialRay, newLight), texColor, uTextureWeight);
+    vec3 color = mix(calculateColor(uEye, initialRay, light), texColor, uTextureWeight);
     fragColor = vec4(color, 1.0);
 }

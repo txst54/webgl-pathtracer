@@ -22,7 +22,7 @@ Isect intersect(vec3 ray, vec3 origin) {
     if (tLight < t) t = tLight;
 
     isect.t = t;
-    isect.albedo = vec3(0.75);
+    isect.albedo = vec3(1.0);
     isect.position = origin + ray * t;
     // float specularHighlight = 0.0;
 

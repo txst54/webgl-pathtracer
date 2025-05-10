@@ -17,6 +17,7 @@ uniform sampler2D uReservoirData2;
 // use_macro{SPHERE_LIB}
 // use_macro{CUBE_LIB}
 // use_macro{SCENE_LIB}
+// use_macro{RAY_LIB}
 // use_macro{RESTIR_RESERVOIR_LIB}
 // use_macro{RIS_UTIL}
 
@@ -57,7 +58,7 @@ void main() {
             vec4 uCandidate2 = texture(uReservoirData2, uv);
 
             candidates[count] = unpackReservoir(uCandidate1, uCandidate2);
-            // if (abs(r.t - candidate.t) > 0.1 * r.t) continue;
+            if (abs(r.t - candidates[count].t) > 0.1 * r.t) continue;
             // generate X_i
             sum_p_hat += candidates[count].p_hat;
             r_out.c += candidates[count].c;
