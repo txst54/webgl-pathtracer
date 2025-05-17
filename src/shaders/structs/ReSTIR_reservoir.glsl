@@ -36,4 +36,5 @@ vec4 packReservoir1(ReSTIR_Reservoir r) {
 vec4 packReservoir2(ReSTIR_Reservoir r) {
     return vec4(r.W_Y, r.w_sum, r.c, r.t); // zero pad unused values
 }
+
 // end_macro

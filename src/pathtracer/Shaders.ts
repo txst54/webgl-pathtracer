@@ -208,17 +208,18 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
             ray = uniformSphereDirection(isect.position, uTime + float(bounce) * 11.0 + ray.x + ray.y, light, lightSize);
         }
         origin = isect.position + isect.normal * epsilon;
-        Isect new_isect = intersect(ray, origin);
         float pdfCosine = pdfCosineWeighted(ray, isect.normal);
         float pdfLight = pdfUniformSphere(ray, isect.position);
         float weightCosine = pdfCosine / (pdfCosine + pdfLight + epsilon);
         float weightLight = pdfLight / (pdfCosine + pdfLight + epsilon);
-        float totalMISWeight = usedCosine ? weightCosine : weightLight;
+
+        float misWeight = usedCosine ? weightCosine : weightLight;
+        float pdfX = max(epsilon, usedCosine ? pdfCosine : pdfLight);
         vec3 brdf = isect.albedo / pi;
         accumulatedColor += isect.isLight ? lightIntensity * colorMask : vec3(0.0);
         float ndotr = dot(isect.normal, ray);
         if (ndotr > 0.0) {
-            colorMask *= brdf * abs(ndotr) * totalMISWeight / max(epsilon, usedCosine ? pdfCosine : pdfLight);
+            colorMask *= brdf * abs(ndotr) * misWeight / pdfX;
         } else {
             break;
         }
@@ -232,7 +233,6 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
 }
 
 void main() {
-    // vec3 newLight = light + uniformlyRandomVector(uTime - 53.0) * lightSize;
 
     // Avoid using 'texture' as a variable name
     vec3 texColor = texture(uTexture, gl_FragCoord.xy / uRes).rgb;
@@ -568,7 +568,8 @@ vec4 packReservoir1(ReSTIR_Reservoir r) {
 
 vec4 packReservoir2(ReSTIR_Reservoir r) {
     return vec4(r.W_Y, r.w_sum, r.c, r.t); // zero pad unused values
-}float random(vec3 scale, float seed) {
+}
+float random(vec3 scale, float seed) {
     return fract(sin(dot(gl_FragCoord.xyz + seed, scale)) * 43758.5453 + seed);
 }
 
@@ -1010,7 +1011,8 @@ vec4 packReservoir1(ReSTIR_Reservoir r) {
 
 vec4 packReservoir2(ReSTIR_Reservoir r) {
     return vec4(r.W_Y, r.w_sum, r.c, r.t); // zero pad unused values
-}
+}
+
 // Balance heuristic for MIS weights
 float balanceHeuristic(float pI, float pJ, float M_I, float M_J) {
     return (pI * M_I) / (M_I * pI + M_J * pJ + 1e-6);
@@ -1365,7 +1367,8 @@ vec4 packReservoir1(ReSTIR_Reservoir r) {
 
 vec4 packReservoir2(ReSTIR_Reservoir r) {
     return vec4(r.W_Y, r.w_sum, r.c, r.t); // zero pad unused values
-}float random(vec3 scale, float seed) {
+}
+float random(vec3 scale, float seed) {
     return fract(sin(dot(gl_FragCoord.xyz + seed, scale)) * 43758.5453 + seed);
 }
 
@@ -1711,6 +1714,46 @@ vec3 normalForCube(vec3 hit, vec3 cubeMin, vec3 cubeMax) {
     return vec3(0.0, 0.0, -1.0);
     else
     return vec3(0.0, 0.0, 1.0);
+}struct Isect {
+    float t; // Distance along the ray
+    vec3 position;
+    vec3 normal;
+    vec3 albedo; // Simplified material color
+    bool isLight; // Is the hit surface a light source?
+    // vec3 emission; // Light emission color
+    float pdf; // PDF of sampling this hit (e.g., light sampling PDF)
+};
+
+Isect intersect(vec3 ray, vec3 origin) {
+    Isect isect;
+    vec2 tRoom = intersectCube(origin, ray, roomCubeMin, roomCubeMax);
+    float tSphere = intersectSphere(origin, ray, sphereCenter, sphereRadius);
+    float tLight = intersectSphere(origin, ray, light, lightSize);
+    float t = infinity;
+    if (tRoom.x < tRoom.y) t = tRoom.y;
+    if (tSphere < t) t = tSphere;
+    if (tLight < t) t = tLight;
+
+    isect.t = t;
+    isect.albedo = vec3(1.0);
+    isect.position = origin + ray * t;
+    // float specularHighlight = 0.0;
+
+    if (t == infinity) {
+        return isect;
+    }
+
+    if (t == tRoom.y) {
+        isect.normal = -normalForCube(isect.position, roomCubeMin, roomCubeMax);
+        if(isect.position.x < -9.9999) isect.albedo = vec3(0.1, 0.5, 1.0);
+        else if(isect.position.x > 9.9999) isect.albedo = vec3(1.0, 0.9, 0.1);
+    } else if (t == tSphere) {
+        isect.normal = normalForSphere(isect.position, sphereCenter, sphereRadius);
+    } else if (t == tLight) {
+        isect.normal = normalForSphere(isect.position, light, lightSize);
+        isect.isLight = true;
+    }
+    return isect;
 }vec3 cosineWeightedDirection(float seed, vec3 normal) {
     // Simple cosine-weighted random direction
     float u = random(vec3(12.9898, 78.233, 151.7182), seed);
@@ -1763,46 +1806,6 @@ float shadow(vec3 origin, vec3 ray, vec3 sphereCenter, float sphereRadius) {
     float t = intersectSphere(origin, ray, sphereCenter, sphereRadius);
     if (t < 1.0) return 0.0;
     return 1.0;
-}struct Isect {
-    float t; // Distance along the ray
-    vec3 position;
-    vec3 normal;
-    vec3 albedo; // Simplified material color
-    bool isLight; // Is the hit surface a light source?
-    // vec3 emission; // Light emission color
-    float pdf; // PDF of sampling this hit (e.g., light sampling PDF)
-};
-
-Isect intersect(vec3 ray, vec3 origin) {
-    Isect isect;
-    vec2 tRoom = intersectCube(origin, ray, roomCubeMin, roomCubeMax);
-    float tSphere = intersectSphere(origin, ray, sphereCenter, sphereRadius);
-    float tLight = intersectSphere(origin, ray, light, lightSize);
-    float t = infinity;
-    if (tRoom.x < tRoom.y) t = tRoom.y;
-    if (tSphere < t) t = tSphere;
-    if (tLight < t) t = tLight;
-
-    isect.t = t;
-    isect.albedo = vec3(1.0);
-    isect.position = origin + ray * t;
-    // float specularHighlight = 0.0;
-
-    if (t == infinity) {
-        return isect;
-    }
-
-    if (t == tRoom.y) {
-        isect.normal = -normalForCube(isect.position, roomCubeMin, roomCubeMax);
-        if(isect.position.x < -9.9999) isect.albedo = vec3(0.1, 0.5, 1.0);
-        else if(isect.position.x > 9.9999) isect.albedo = vec3(1.0, 0.9, 0.1);
-    } else if (t == tSphere) {
-        isect.normal = normalForSphere(isect.position, sphereCenter, sphereRadius);
-    } else if (t == tLight) {
-        isect.normal = normalForSphere(isect.position, light, lightSize);
-        isect.isLight = true;
-    }
-    return isect;
 }
 struct ReSTIR_Reservoir {
     vec3 Y;      // light direction or position
@@ -1839,7 +1842,8 @@ vec4 packReservoir1(ReSTIR_Reservoir r) {
 
 vec4 packReservoir2(ReSTIR_Reservoir r) {
     return vec4(r.W_Y, r.w_sum, r.c, r.t); // zero pad unused values
-}
+}
+
 // Balance heuristic for MIS weights
 float balanceHeuristic(float pI, float pJ, float M_I, float M_J) {
     return (pI * M_I) / (M_I * pI + M_J * pJ + 1e-6);
@@ -2042,13 +2046,15 @@ export const risFSText =
 precision highp float;
 
 uniform vec3 uEye;
-uniform vec2 uRes;
 uniform float uTime;
 in vec3 initialRay;
-out vec4 fragColor;
 
-#define M 10
-#define PI 3.14159265359vec3 roomCubeMin = vec3(-10.0, -10.0, -10.0);
+uniform sampler2D uTexture;
+uniform float uTextureWeight;
+uniform vec2 uRes;
+
+#define NB_BSDF 10
+#define NB_LIGHT 10vec3 roomCubeMin = vec3(-10.0, -10.0, -10.0);
 vec3 roomCubeMax = vec3(10.0, 10.0, 10.0);
 vec3 sphereCenter = vec3(-3.0, -7.0, 3.0);
 float sphereRadius = 3.0;
@@ -2059,21 +2065,25 @@ float epsilon = 0.00001;
 float lightSize = 2.0;
 float pi = 3.14159265359;
 float maxBounces = 100.0;
-vec3 ReSTIR_lightEmission = vec3(0.5); // Light intensity/colorfloat intersectSphere(vec3 origin, vec3 ray, vec3 sphereCenter, float sphereRadius) {
-    vec3 toSphere = origin - sphereCenter;
-    float a = dot(ray, ray);
-    float b = 2.0 * dot(toSphere, ray);
-    float c = dot(toSphere, toSphere) - sphereRadius*sphereRadius;
-    float discriminant = b*b - 4.0*a*c;
-    if(discriminant > 0.0) {
-        float t = (-b - sqrt(discriminant)) / (2.0 * a);
-        if(t > 0.0) return t;
-    }
-    return infinity;
+vec3 ReSTIR_lightEmission = vec3(0.5); // Light intensity/colorfloat random(vec3 scale, float seed) {
+    return fract(sin(dot(gl_FragCoord.xyz + seed, scale)) * 43758.5453 + seed);
 }
 
-vec3 normalForSphere(vec3 hit, vec3 sphereCenter, float sphereRadius) {
-    return (hit - sphereCenter) / sphereRadius;
+float rand(vec2 co, float seed) {
+    return fract(sin(dot(co.xy + seed, vec2(12.9898, 78.233))) * 43758.5453);
+}
+
+vec3 uniformlyRandomDirection(float seed) {
+    float u = random(vec3(12.9898, 78.233, 151.7182), seed);
+    float v = random(vec3(63.7264, 10.873, 623.6736), seed);
+    float z = 1.0 - 2.0 * u;
+    float r = sqrt(1.0 - z * z);
+    float angle = 6.283185307179586 * v;
+    return vec3(r * cos(angle), r * sin(angle), z);
+}
+
+vec3 uniformlyRandomVector(float seed) {
+    return uniformlyRandomDirection(seed) * sqrt(random(vec3(36.7539, 50.3658, 306.2759), seed));
 }vec2 intersectCube(vec3 origin, vec3 ray, vec3 cubeMin, vec3 cubeMax) {
     vec3 tMin = (cubeMin - origin) / ray;
     vec3 tMax = (cubeMax - origin) / ray;
@@ -2097,6 +2107,21 @@ vec3 normalForCube(vec3 hit, vec3 cubeMin, vec3 cubeMax) {
     return vec3(0.0, 0.0, -1.0);
     else
     return vec3(0.0, 0.0, 1.0);
+}float intersectSphere(vec3 origin, vec3 ray, vec3 sphereCenter, float sphereRadius) {
+    vec3 toSphere = origin - sphereCenter;
+    float a = dot(ray, ray);
+    float b = 2.0 * dot(toSphere, ray);
+    float c = dot(toSphere, toSphere) - sphereRadius*sphereRadius;
+    float discriminant = b*b - 4.0*a*c;
+    if(discriminant > 0.0) {
+        float t = (-b - sqrt(discriminant)) / (2.0 * a);
+        if(t > 0.0) return t;
+    }
+    return infinity;
+}
+
+vec3 normalForSphere(vec3 hit, vec3 sphereCenter, float sphereRadius) {
+    return (hit - sphereCenter) / sphereRadius;
 }struct Isect {
     float t; // Distance along the ray
     vec3 position;
@@ -2137,25 +2162,6 @@ Isect intersect(vec3 ray, vec3 origin) {
         isect.isLight = true;
     }
     return isect;
-}float random(vec3 scale, float seed) {
-    return fract(sin(dot(gl_FragCoord.xyz + seed, scale)) * 43758.5453 + seed);
-}
-
-float rand(vec2 co, float seed) {
-    return fract(sin(dot(co.xy + seed, vec2(12.9898, 78.233))) * 43758.5453);
-}
-
-vec3 uniformlyRandomDirection(float seed) {
-    float u = random(vec3(12.9898, 78.233, 151.7182), seed);
-    float v = random(vec3(63.7264, 10.873, 623.6736), seed);
-    float z = 1.0 - 2.0 * u;
-    float r = sqrt(1.0 - z * z);
-    float angle = 6.283185307179586 * v;
-    return vec3(r * cos(angle), r * sin(angle), z);
-}
-
-vec3 uniformlyRandomVector(float seed) {
-    return uniformlyRandomDirection(seed) * sqrt(random(vec3(36.7539, 50.3658, 306.2759), seed));
 }vec3 cosineWeightedDirection(float seed, vec3 normal) {
     // Simple cosine-weighted random direction
     float u = random(vec3(12.9898, 78.233, 151.7182), seed);
@@ -2244,211 +2250,114 @@ vec4 packReservoir1(ReSTIR_Reservoir r) {
 
 vec4 packReservoir2(ReSTIR_Reservoir r) {
     return vec4(r.W_Y, r.w_sum, r.c, r.t); // zero pad unused values
-}
-// Balance heuristic for MIS weights
-float balanceHeuristic(float pI, float pJ, float M_I, float M_J) {
-    return (pI * M_I) / (M_I * pI + M_J * pJ + 1e-6);
 }
+
 
-// Sample point on sphere
-vec3 sampleSphere(vec3 center, float radius, vec2 u) {
-    float theta = 2.0 * pi * u.x;
-    float phi = acos(2.0 * u.y - 1.0);
-    return center + radius * vec3(cos(theta) * sin(phi), sin(theta) * sin(phi), cos(phi));
-}
+out vec4 fragColor;
 
-bool isVisible(vec3 from, vec3 to) {
-    vec3 dir = normalize(to - from);
-    float dist = length(to - from);
-
-    vec3 origin = from + dir * epsilon;
-    Isect shadowIsect = intersect(dir, origin);
-
-    return shadowIsect.isLight;
-}
-
-
-float compute_p(vec3 a, vec3 b) {
-    vec3 fromLightDir = a - b;
-    float dist2 = dot(fromLightDir, fromLightDir);
-    fromLightDir = normalize(fromLightDir);
-    vec3 lightNormal = normalize(b - light);
-    float cosAtLight = max(0.0, dot(lightNormal, fromLightDir));
-    if (cosAtLight < epsilon || dist2 < epsilon) return epsilon;
-    float surfaceArea = 4.0 * pi * lightSize * lightSize;
-    // Conversion factor from area to solid angle pdf is cos(theta)/dist2 and you divide by conversion factor
-    float pArea = (1.0 / surfaceArea) * (dist2 / cosAtLight);
-    return pArea;
-}
-
-vec3 compute_f(vec3 a, vec3 b, vec3 normal, vec3 albedo) {
-    vec3 dir_a_to_b = normalize(b - a);
-    vec3 light_normal = normalize(b - light);
-    float cosTheta_a = max(dot(normal, dir_a_to_b), 0.0);
-    float cosTheta_b = max(dot(light_normal, -dir_a_to_b), 0.0);
-    float dist2 = dot(b - a, b - a);
-    float geometry_term = (cosTheta_a * cosTheta_b) / dist2;
-    vec3 brdf = albedo / pi;
-    float visibility_term = shadow(a + normal * epsilon, dir_a_to_b, sphereCenter, sphereRadius);
-    // Our target function does not include the geometry term because we're integrating
-    // in solid angle. The geometry term in the target function ( / in the integrand) is only
-    // for surface area direct lighting integration
-    return ReSTIR_lightEmission * cosTheta_a * visibility_term;
-}
-
-float compute_p_hat(vec3 a, vec3 b, vec3 normal, vec3 albedo) {
-    // computes the light contribution p_hat of a ray from the light position 'b' to the object pos 'a'
-    return length(compute_f(a, b, normal, albedo));
-}
-
-vec3 shade_reservoir(ReSTIR_Reservoir r, Isect isect) {
-    // return vec3(r.W_Y);
-    return compute_f(isect.position, r.Y, isect.normal, isect.albedo) * r.W_Y;
-}
-
-void random_samples(out vec3[M] samples, out float[M] contrib_weights, Isect isect, vec2 randUV) {
-    for (int i = 0; i < M; i++) {
-        float seed1 = float(i) * 0.1 + uTime * 0.5;
-        float seed2 = float(i) * 0.2 + uTime * 0.7;
-        vec2 u = vec2(rand(randUV, seed1), rand(randUV, seed2));
-
-        vec3 lightPos = sampleSphere(light, lightSize, u);
-
-        samples[i] = lightPos;
-        contrib_weights[i] = compute_p(isect.position, lightPos);
-    }
-}
-
-//ReSTIR_Reservoir ris_resample(Isect isect, vec2 randUV) {
-//    ReSTIR_Reservoir r = initializeReservoir();
-//    for (int i = 0; i < M; i++) {
-//        float light_sample_pdf = compute_p(isect.position, light);
-//    }
-//}
-
-ReSTIR_Reservoir resample(vec3[M] samples, float[M] contrib_weights, int count, Isect isect, vec2 randUV, int mis_type, vec3 aux) {
-    ReSTIR_Reservoir r = initializeReservoir();
-    if (isect.isLight) {
-        r.Y = light; // Increased light emission value
-        r.W_Y = 1.0;
-        return r;
-    }
-
-    float p_hatx[M];
-    float weights[M];
-    float p_sum = 0.0;
-
-    for (int i = 0; i < M; i++) {
-        if (i >= count) {
-            break;
-        }
-        p_sum += contrib_weights[i]; // (1 / (1 / p(x)));
-    }
-
-    for (int i = 0; i < M; i++) {
-        if (i >= count) {
-            break;
-        }
-        float p_hat = compute_p_hat(isect.position, samples[i], isect.normal, isect.albedo);
-        float p_i = contrib_weights[i];
-        float temporal_weight = i == 0 ? 1.0 : aux.x;
-        // float m_i = mis_type == 0 ? p_i / p_sum : mis_type == 1 ? p_hat / aux.x : temporal_weight * p_hat / aux.y;
-        float m_i = 1.0 / float(count);
-        float W_X_i = 1.0 / contrib_weights[i];
-        weights[i] = m_i * p_hat * W_X_i;
-        p_hatx[i] = p_hat;
-        r.w_sum += weights[i];
-    }
-
-    float randint = rand(randUV, uTime + 123.456);
-    int selectedIdx = 0;
-
-    for (int i = 0; i < M; i++) {
-        if (i >= count) {
-            break;
-        }
-        if (weights[i] > epsilon) {
-            randint = randint - (weights[i]/r.w_sum);
-            if (randint <= 0.0) {
-                selectedIdx = i;
-                break;
-            }
-        }
-    }
-    r.Y = samples[selectedIdx];
-    r.t = isect.t;
-    r.p_hat = p_hatx[selectedIdx];
-    if (r.w_sum < epsilon || p_hatx[selectedIdx] < epsilon) {
-        r.W_Y = 0.0;
-    } else {
-        r.W_Y = 1.0 / p_hatx[selectedIdx] * r.w_sum;
-    }
-    r.c = 1.0;
-    return r;
-}
-
-void main() {
-    vec3 ray = normalize(initialRay);
-    vec3 origin = uEye;
-
-    vec2 randUV = gl_FragCoord.xy / uRes;
-    float jitterSeed = uTime * 1234.5678;
-    randUV += vec2(rand(randUV, jitterSeed), rand(randUV, jitterSeed + 1.0)) * 0.001;
-
+vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
     vec3 colorMask = vec3(1.0);
     vec3 accumulatedColor = vec3(0.0);
-    for (int i = 0; i < 10; i++) {
-        randUV += vec2(float(i) * 73.0);
+    vec3 directLight = vec3(0.0);
+
+    float roulette = random(vec3(1.0), dot(gl_FragCoord.xy, vec2(12.9898, 78.233)) + uTime * 51.79);
+    int num_iters = int(ceil(log(1.0 - roulette) / log(0.9)));
+    float total_dist = 0.0;
+
+    for (int bounce = 0; bounce < 100; bounce++) {
         Isect isect = intersect(ray, origin);
         if (isect.t == infinity) {
             break;
         }
 
         if (isect.isLight) {
-            fragColor = vec4(ReSTIR_lightEmission, 1.0);
-            return;
+            accumulatedColor += lightIntensity * colorMask;
+            break;
         }
 
-        vec3[M] samples;
-        float[M] contrib_weights;
-        random_samples(samples, contrib_weights, isect, randUV);
-        ReSTIR_Reservoir r = resample(samples, contrib_weights, M, isect, randUV, 0, vec3(0.0));
-        vec3 light_contribution = shade_reservoir(r, isect);
-        float diffuse = max(0.0, dot(normalize(light - isect.position), isect.normal));
+        ReSTIR_Reservoir r = initializeReservoir();
+        int M = NB_BSDF + NB_LIGHT;
+        vec3 nextOrigin = isect.position + isect.normal * epsilon;
+        float baseSeed = uTime + float(bounce) * float(M) * 23.0 + 79.0 + ray.x + ray.y;
 
-        colorMask *= isect.albedo;
-        accumulatedColor += colorMask * light_contribution;
+        for (int candidate = 0; candidate < M; candidate++) {
+            vec3 next_ray = ray;
+            float cBaseSeed = baseSeed + float(candidate);
+
+            float reservoirWeight = 0.0;
+            bool usedCosine = candidate < NB_BSDF;
+            if (usedCosine) {
+                next_ray = cosineWeightedDirection(cBaseSeed, isect.normal);
+            } else {
+                next_ray = uniformSphereDirection(isect.position, cBaseSeed, light, lightSize);
+            }
+
+            float pdfCosine = pdfCosineWeighted(next_ray, isect.normal);
+            float pdfLight = pdfUniformSphere(next_ray, isect.position);
+
+            if (usedCosine) {
+                // is bsdf so need to check if ray ends at light
+                Isect next_isect = intersect(next_ray, nextOrigin);
+                if (!next_isect.isLight) {
+                    continue;
+                }
+            }
+
+            float misWeight = (usedCosine ? pdfCosine : pdfLight) / (float(NB_BSDF) * pdfCosine + float(NB_LIGHT) * pdfLight + epsilon);
+            float pdfX = max(epsilon, usedCosine ? pdfCosine : pdfLight);
+
+            vec3 brdf = isect.albedo / pi;
+            float ndotr = dot(isect.normal, next_ray);
+            vec3 contribution = brdf * abs(ndotr);
+            float pHat = dot(contribution, vec3(0.3086, 0.6094, 0.0820));
+
+            if (ndotr <= epsilon || pHat <= epsilon || pdfX <= epsilon) {
+                continue;
+            }
+
+            reservoirWeight = misWeight * pHat / pdfX;
+            r.w_sum += reservoirWeight;
+            float reservoirStrategy = random(vec3(1.0), cBaseSeed + 119.0);
+            if (reservoirStrategy < reservoirWeight / r.w_sum) {
+                r.p_hat = pHat;
+                r.Y = next_ray;
+            }
+        }
+
+        if (r.w_sum > 0.0) {
+            vec3 brdf = isect.albedo / pi;
+            float ndotr = dot(isect.normal, r.Y);
+            r.W_Y = r.w_sum / max(r.p_hat, epsilon);
+            directLight = lightIntensity * brdf * abs(ndotr) * r.W_Y;
+            accumulatedColor += colorMask * directLight;
+        }
+
+        if (bounce >= num_iters) {
+            break;
+        }
+
+        vec3 nextRay = cosineWeightedDirection(baseSeed + 1.0, isect.normal);
+        float ndotr = dot(isect.normal, nextRay);
+        if (ndotr <= 0.0) break;
+
+        vec3 brdf = isect.albedo / pi;
+        colorMask *= brdf * ndotr;
+
+        origin = nextOrigin;
+        ray = nextRay;
     }
 
-    fragColor = vec4(accumulatedColor, 1.0);
+    return accumulatedColor;
 }
 
-void test_p() {
-    vec3 ray = normalize(initialRay);
-    vec3 origin = uEye;
+void main() {
 
-    vec2 randUV = gl_FragCoord.xy / uRes;
-    float jitterSeed = uTime * 1234.5678;
-    randUV += vec2(rand(randUV, jitterSeed), rand(randUV, jitterSeed + 1.0)) * 0.001;
+    // Avoid using 'texture' as a variable name
+    vec3 texColor = texture(uTexture, gl_FragCoord.xy / uRes).rgb;
 
-    Isect isect = intersect(ray, origin);
-    vec3 lightPos = sampleSphere(light, lightSize, randUV);
-    float visibility = shadow(isect.position + isect.normal * epsilon, lightPos - isect.position, sphereCenter, sphereRadius);
-    fragColor = vec4(vec3(visibility * compute_p(isect.position, lightPos)), 1.0);
-}
-
-void test_sample_sphere() {
-    vec3 ray = normalize(initialRay);
-    vec3 origin = uEye;
-
-    vec2 randUV = gl_FragCoord.xy / uRes;
-    float jitterSeed = uTime * 1234.5678;
-    randUV += vec2(rand(randUV, jitterSeed), rand(randUV, jitterSeed + 1.0)) * 0.001;
-
-    Isect isect = intersect(ray, origin);
-    vec3 lightPos = sampleSphere(light, lightSize, randUV);
-    // should output gray
-    fragColor = vec4(vec3(length(lightPos - light)/2.0), 1.0);
+    vec3 color = calculateColor(uEye, initialRay, light);
+    // vec3 color = mix(calculateColor(uEye, initialRay, light), texColor, uTextureWeight);
+    fragColor = vec4(color, 1.0);
 }
 `;
 

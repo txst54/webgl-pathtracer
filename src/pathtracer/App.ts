@@ -253,7 +253,7 @@ export class PathTracer extends CanvasAnimation {
         });
     renderPass.addUniform("uTime",
         (gl: WebGLRenderingContext, loc: WebGLUniformLocation) => {
-          const timeSinceStart = (new Date() - this.startTime) * 0.001; // seconds since start
+          const timeSinceStart = (new Date().getMilliseconds() - this.startTime.getMilliseconds()) * 0.001; // seconds since start
           gl.uniform1f(loc, timeSinceStart);
         });
     renderPass.addUniform("uTextureWeight",

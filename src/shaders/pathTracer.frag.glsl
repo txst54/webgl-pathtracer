@@ -38,17 +38,18 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
             ray = uniformSphereDirection(isect.position, uTime + float(bounce) * 11.0 + ray.x + ray.y, light, lightSize);
         }
         origin = isect.position + isect.normal * epsilon;
-        Isect new_isect = intersect(ray, origin);
         float pdfCosine = pdfCosineWeighted(ray, isect.normal);
         float pdfLight = pdfUniformSphere(ray, isect.position);
         float weightCosine = pdfCosine / (pdfCosine + pdfLight + epsilon);
         float weightLight = pdfLight / (pdfCosine + pdfLight + epsilon);
-        float totalMISWeight = usedCosine ? weightCosine : weightLight;
+
+        float misWeight = usedCosine ? weightCosine : weightLight;
+        float pdfX = max(epsilon, usedCosine ? pdfCosine : pdfLight);
         vec3 brdf = isect.albedo / pi;
         accumulatedColor += isect.isLight ? lightIntensity * colorMask : vec3(0.0);
         float ndotr = dot(isect.normal, ray);
         if (ndotr > 0.0) {
-            colorMask *= brdf * abs(ndotr) * totalMISWeight / max(epsilon, usedCosine ? pdfCosine : pdfLight);
+            colorMask *= brdf * abs(ndotr) * misWeight / pdfX;
         } else {
             break;
         }
@@ -62,7 +63,6 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
 }
 
 void main() {
-    // vec3 newLight = light + uniformlyRandomVector(uTime - 53.0) * lightSize;
 
     // Avoid using 'texture' as a variable name
     vec3 texColor = texture(uTexture, gl_FragCoord.xy / uRes).rgb;
