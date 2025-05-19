@@ -1,10 +1,5 @@
 //begin_macro{RIS_UTIL}
 
-// Balance heuristic for MIS weights
-float balanceHeuristic(float pI, float pJ, float M_I, float M_J) {
-    return (pI * M_I) / (M_I * pI + M_J * pJ + 1e-6);
-}
-
 // Sample point on sphere
 vec3 sampleSphere(vec3 center, float radius, vec2 u) {
     float theta = 2.0 * pi * u.x;

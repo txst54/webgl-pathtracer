@@ -9,8 +9,8 @@ uniform sampler2D uTexture;
 uniform float uTextureWeight;
 uniform vec2 uRes;
 
-#define NB_BSDF 10
-#define NB_LIGHT 10
+#define NB_BSDF 1
+#define NB_LIGHT 1
 
 // use_macro{CONSTANTS}
 // use_macro{RAND_LIB}
@@ -27,50 +27,49 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
     vec3 accumulatedColor = vec3(0.0);
     vec3 directLight = vec3(0.0);
 
-    float roulette = random(vec3(1.0), dot(gl_FragCoord.xy, vec2(12.9898, 78.233)) + uTime * 51.79);
+    float timeEntropy = fract(sin(uTime * 43758.5453) * 43758.5453);
+    float rouletteSeed = hashCoords(gl_FragCoord.xy + timeEntropy * vec2(1.0, -1.0));
+    float roulette = random(vec3(1.0), rouletteSeed);
     int num_iters = int(ceil(log(1.0 - roulette) / log(0.9)));
     float total_dist = 0.0;
 
-    for (int bounce = 0; bounce < 100; bounce++) {
+    for (int bounce = 0; bounce < 10; bounce++) {
         Isect isect = intersect(ray, origin);
         if (isect.t == infinity) {
-            break;
-        }
-
-        if (isect.isLight) {
-            accumulatedColor += lightIntensity * colorMask;
             break;
         }
 
         ReSTIR_Reservoir r = initializeReservoir();
         int M = NB_BSDF + NB_LIGHT;
         vec3 nextOrigin = isect.position + isect.normal * epsilon;
-        float baseSeed = uTime + float(bounce) * float(M) * 23.0 + 79.0 + ray.x + ray.y;
+        float baseSeed = float(bounce) * 51.19 * float(M) * 23.0 + 79.0 + rouletteSeed;
 
         for (int candidate = 0; candidate < M; candidate++) {
             vec3 next_ray = ray;
-            float cBaseSeed = baseSeed + float(candidate);
+            float cBaseSeed = baseSeed * 17.51 + float(candidate) * 119.73;
 
             float reservoirWeight = 0.0;
             bool usedCosine = candidate < NB_BSDF;
             if (usedCosine) {
-                next_ray = cosineWeightedDirection(cBaseSeed, isect.normal);
-            } else {
-                next_ray = uniformSphereDirection(isect.position, cBaseSeed, light, lightSize);
-            }
-
-            float pdfCosine = pdfCosineWeighted(next_ray, isect.normal);
-            float pdfLight = pdfUniformSphere(next_ray, isect.position);
-
-            if (usedCosine) {
+                next_ray = cosineWeightedDirection(cBaseSeed + 11.37, isect.normal);
                 // is bsdf so need to check if ray ends at light
                 Isect next_isect = intersect(next_ray, nextOrigin);
                 if (!next_isect.isLight) {
                     continue;
                 }
+            } else {
+                next_ray = uniformSphereDirection(isect.position, cBaseSeed + 23.57, light, lightSize);
             }
 
-            float misWeight = (usedCosine ? pdfCosine : pdfLight) / (float(NB_BSDF) * pdfCosine + float(NB_LIGHT) * pdfLight + epsilon);
+            float pdfCosine = pdfCosineWeighted(next_ray, isect.normal);
+            float pdfLight = pdfUniformSphere(next_ray, isect.position);
+
+            float pdfA = usedCosine? pdfCosine : pdfLight;
+            float pdfB = usedCosine? pdfLight : pdfCosine;
+            float nbPdfA = float(usedCosine ? NB_BSDF : NB_LIGHT);
+            float nbPdfB = float(usedCosine ? NB_LIGHT : NB_BSDF);
+            float misWeight = balanceHeuristic(pdfA, nbPdfA, pdfB, nbPdfB);
+
             float pdfX = max(epsilon, usedCosine ? pdfCosine : pdfLight);
 
             vec3 brdf = isect.albedo / pi;
@@ -84,11 +83,15 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
 
             reservoirWeight = misWeight * pHat / pdfX;
             r.w_sum += reservoirWeight;
-            float reservoirStrategy = random(vec3(1.0), cBaseSeed + 119.0);
+            float reservoirStrategy = random(vec3(1.0), cBaseSeed + 7.23);
             if (reservoirStrategy < reservoirWeight / r.w_sum) {
                 r.p_hat = pHat;
                 r.Y = next_ray;
             }
+        }
+
+        if (isect.isLight && bounce == 0) {
+            accumulatedColor += lightIntensity;
         }
 
         if (r.w_sum > 0.0) {
@@ -99,16 +102,16 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
             accumulatedColor += colorMask * directLight;
         }
 
-        if (bounce >= num_iters) {
-            break;
-        }
+//        if (bounce >= num_iters) {
+//            break;
+//        }
 
-        vec3 nextRay = cosineWeightedDirection(baseSeed + 1.0, isect.normal);
+        vec3 nextRay = cosineWeightedDirection(baseSeed, isect.normal);
+        float pdfCosine = pdfCosineWeighted(nextRay, isect.normal);
         float ndotr = dot(isect.normal, nextRay);
-        if (ndotr <= 0.0) break;
-
+        if (ndotr <= 0.0 || pdfCosine <= epsilon) break;
         vec3 brdf = isect.albedo / pi;
-        colorMask *= brdf * ndotr;
+        colorMask *= brdf * ndotr / pdfCosine;
 
         origin = nextOrigin;
         ray = nextRay;

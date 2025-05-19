@@ -3,6 +3,10 @@ float random(vec3 scale, float seed) {
     return fract(sin(dot(gl_FragCoord.xyz + seed, scale)) * 43758.5453 + seed);
 }
 
+float hashCoords(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
 float rand(vec2 co, float seed) {
     return fract(sin(dot(co.xy + seed, vec2(12.9898, 78.233))) * 43758.5453);
 }
@@ -27,7 +31,7 @@ vec3 roomCubeMax = vec3(10.0, 10.0, 10.0);
 vec3 sphereCenter = vec3(-3.0, -7.0, 3.0);
 float sphereRadius = 3.0;
 vec3 light = vec3(6.0, -8.0, -6.0);
-float lightIntensity = 1.0;
+float lightIntensity = 0.25;
 float infinity = 10000.0;
 float epsilon = 0.00001;
 float lightSize = 2.0;

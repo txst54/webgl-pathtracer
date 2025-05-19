@@ -54,4 +54,9 @@ float shadow(vec3 origin, vec3 ray, vec3 sphereCenter, float sphereRadius) {
     if (t < 1.0) return 0.0;
     return 1.0;
 }
+
+float balanceHeuristic(float pdf_a, float nb_pdf_a, float pdf_b, float nb_pdf_b) {
+    return pdf_a / (nb_pdf_a * pdf_a + nb_pdf_b * pdf_b + epsilon);
+}
+
 // end_macro
