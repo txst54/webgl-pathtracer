@@ -43,6 +43,10 @@ float hashCoords(vec2 p) {
     return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
 }
 
+float hashValue(float p) {
+    return fract(sin(p * 43758.5453) * 43758.5453);
+}
+
 float rand(vec2 co, float seed) {
     return fract(sin(dot(co.xy + seed, vec2(12.9898, 78.233))) * 43758.5453);
 }
@@ -306,6 +310,10 @@ vec3 ReSTIR_lightEmission = vec3(0.5); // Light intensity/colorfloat random(ve
 
 float hashCoords(vec2 p) {
     return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+float hashValue(float p) {
+    return fract(sin(p * 43758.5453) * 43758.5453);
 }
 
 float rand(vec2 co, float seed) {
@@ -623,6 +631,10 @@ float hashCoords(vec2 p) {
     return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
 }
 
+float hashValue(float p) {
+    return fract(sin(p * 43758.5453) * 43758.5453);
+}
+
 float rand(vec2 co, float seed) {
     return fract(sin(dot(co.xy + seed, vec2(12.9898, 78.233))) * 43758.5453);
 }
@@ -871,6 +883,10 @@ uniform sampler2D uReservoirData2;
 
 float hashCoords(vec2 p) {
     return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+float hashValue(float p) {
+    return fract(sin(p * 43758.5453) * 43758.5453);
 }
 
 float rand(vec2 co, float seed) {
@@ -1430,6 +1446,10 @@ float hashCoords(vec2 p) {
     return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
 }
 
+float hashValue(float p) {
+    return fract(sin(p * 43758.5453) * 43758.5453);
+}
+
 float rand(vec2 co, float seed) {
     return fract(sin(dot(co.xy + seed, vec2(12.9898, 78.233))) * 43758.5453);
 }
@@ -1710,6 +1730,10 @@ layout(location = 1) out vec4 out_ReservoirData2;
 
 float hashCoords(vec2 p) {
     return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+float hashValue(float p) {
+    return fract(sin(p * 43758.5453) * 43758.5453);
 }
 
 float rand(vec2 co, float seed) {
@@ -2115,8 +2139,8 @@ uniform sampler2D uTexture;
 uniform float uTextureWeight;
 uniform vec2 uRes;
 
-#define NB_BSDF 20
-#define NB_LIGHT 20vec3 roomCubeMin = vec3(-10.0, -10.0, -10.0);
+#define NB_BSDF 50
+#define NB_LIGHT 50vec3 roomCubeMin = vec3(-10.0, -10.0, -10.0);
 vec3 roomCubeMax = vec3(10.0, 10.0, 10.0);
 vec3 sphereCenter = vec3(-3.0, -7.0, 3.0);
 float sphereRadius = 3.0;
@@ -2133,6 +2157,10 @@ vec3 ReSTIR_lightEmission = vec3(0.5); // Light intensity/colorfloat random(ve
 
 float hashCoords(vec2 p) {
     return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+float hashValue(float p) {
+    return fract(sin(p * 43758.5453) * 43758.5453);
 }
 
 float rand(vec2 co, float seed) {
@@ -2331,7 +2359,7 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
     vec3 accumulatedColor = vec3(0.0);
     vec3 directLight = vec3(0.0);
 
-    float timeEntropy = fract(sin(uTime * 43758.5453) * 43758.5453);
+    float timeEntropy = hashValue(uTime);
     float rouletteSeed = hashCoords(gl_FragCoord.xy + timeEntropy * vec2(1.0, -1.0));
     float roulette = random(vec3(1.0), rouletteSeed);
     int num_iters = int(ceil(log(1.0 - roulette) / log(0.9)));
@@ -2346,11 +2374,11 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
         ReSTIR_Reservoir r = initializeReservoir();
         int M = NB_BSDF + NB_LIGHT;
         vec3 nextOrigin = isect.position + isect.normal * epsilon;
-        float baseSeed = float(bounce) * 51.19 * float(M) * 23.0 + 79.0 + rouletteSeed;
+        float baseSeed = hashValue(float(bounce) * 51.19 * float(M) * 23.0 + 79.0) + rouletteSeed;
 
         for (int candidate = 0; candidate < M; candidate++) {
             vec3 next_ray = ray;
-            float cBaseSeed = baseSeed * 17.51 + float(candidate) * 119.73;
+            float cBaseSeed = baseSeed * 17.51 + hashValue(float(candidate)) * 119.73;
 
             float reservoirWeight = 0.0;
             bool usedCosine = candidate < NB_BSDF;
@@ -2451,6 +2479,10 @@ out vec4 fragColor; // Replaces gl_FragColorfloat random(vec3 scale, float seed
 
 float hashCoords(vec2 p) {
     return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+float hashValue(float p) {
+    return fract(sin(p * 43758.5453) * 43758.5453);
 }
 
 float rand(vec2 co, float seed) {

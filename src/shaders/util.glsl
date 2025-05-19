@@ -7,6 +7,10 @@ float hashCoords(vec2 p) {
     return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
 }
 
+float hashValue(float p) {
+    return fract(sin(p * 43758.5453) * 43758.5453);
+}
+
 float rand(vec2 co, float seed) {
     return fract(sin(dot(co.xy + seed, vec2(12.9898, 78.233))) * 43758.5453);
 }

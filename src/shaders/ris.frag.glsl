@@ -9,8 +9,8 @@ uniform sampler2D uTexture;
 uniform float uTextureWeight;
 uniform vec2 uRes;
 
-#define NB_BSDF 1
-#define NB_LIGHT 1
+#define NB_BSDF 5
+#define NB_LIGHT 5
 
 // use_macro{CONSTANTS}
 // use_macro{RAND_LIB}
@@ -27,7 +27,7 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
     vec3 accumulatedColor = vec3(0.0);
     vec3 directLight = vec3(0.0);
 
-    float timeEntropy = fract(sin(uTime * 43758.5453) * 43758.5453);
+    float timeEntropy = hashValue(uTime);
     float rouletteSeed = hashCoords(gl_FragCoord.xy + timeEntropy * vec2(1.0, -1.0));
     float roulette = random(vec3(1.0), rouletteSeed);
     int num_iters = int(ceil(log(1.0 - roulette) / log(0.9)));
@@ -42,11 +42,11 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
         ReSTIR_Reservoir r = initializeReservoir();
         int M = NB_BSDF + NB_LIGHT;
         vec3 nextOrigin = isect.position + isect.normal * epsilon;
-        float baseSeed = float(bounce) * 51.19 * float(M) * 23.0 + 79.0 + rouletteSeed;
+        float baseSeed = hashValue(float(bounce) * 51.19 * float(M) * 23.0 + 79.0) + rouletteSeed;
 
         for (int candidate = 0; candidate < M; candidate++) {
             vec3 next_ray = ray;
-            float cBaseSeed = baseSeed * 17.51 + float(candidate) * 119.73;
+            float cBaseSeed = baseSeed * 17.51 + hashValue(float(candidate)) * 119.73;
 
             float reservoirWeight = 0.0;
             bool usedCosine = candidate < NB_BSDF;
