@@ -25,7 +25,7 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
     float roulette = random(vec3(1.0), dot(gl_FragCoord.xy, vec2(12.9898, 78.233)) + uTime * 51.79);
     int num_iters = int(ceil(log(1.0 - roulette) / log(0.9)));
     float total_dist = 0.0;
-    for (int bounce = 0; bounce < 10; bounce++) {
+    for (int bounce = 0; bounce < 3; bounce++) {
         Isect isect = intersect(ray, origin);
         if (isect.t == infinity) {
             break;

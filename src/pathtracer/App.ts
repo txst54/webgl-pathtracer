@@ -263,8 +263,11 @@ export class PathTracer extends CanvasAnimation {
     renderPass.addUniform("uRes", (gl, loc) => {
       gl.uniform2f(loc, this.canvas2d.width, this.canvas2d.height);
     });
-    renderPass.addUniform("viewMat_prev", (gl, loc) => {
+    renderPass.addUniform("uViewMatPrev", (gl, loc) => {
       gl.uniformMatrix4fv(loc, false, this.gui.getCamera().getViewMatrixPrevious());
+    });
+    renderPass.addUniform("uProjMatPrev", (gl, loc) => {
+      gl.uniformMatrix4fv(loc, false, this.gui.getCamera().getProjMatrixPrevious());
     });
     return indices.length;
   }

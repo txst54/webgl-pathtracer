@@ -9,6 +9,7 @@ uniform float uTime;
 
 out vec4 fragColor; // Replaces gl_FragColor
 
+// use_macro{CONSTANTS}
 // use_macro{RAND_LIB}
 // use_macro{RESERVOIR_LIB}
 

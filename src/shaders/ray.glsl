@@ -17,12 +17,17 @@ vec3 cosineWeightedDirection(float seed, vec3 normal) {
     return normalize(r*cos(angle)*sdir + r*sin(angle)*tdir + sqrt(1.-u)*normal);
 }
 
-vec3 uniformSphereDirection(vec3 origin, float seed, vec3 center, float radius) {
+vec3 uniformSpherePos(vec3 origin, float seed, vec3 center, float radius) {
     float u = random(vec3(12.9898, 78.233, 151.7182), seed);
     float v = random(vec3(63.7264, 10.873, 623.6736), seed);
     float theta = 2.0 * pi * u;
     float phi = acos(2.0 * v - 1.0);
     vec3 lightPoint = center + radius * vec3(cos(theta) * sin(phi), sin(theta) * sin(phi), cos(phi));
+    return lightPoint;
+}
+
+vec3 uniformSphereDirection(vec3 origin, float seed, vec3 center, float radius) {
+    vec3 lightPoint = uniformSpherePos(origin, seed, center, radius);
     return normalize(lightPoint - origin);
 }
 

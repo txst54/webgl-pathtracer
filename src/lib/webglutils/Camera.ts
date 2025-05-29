@@ -57,6 +57,7 @@ export class Camera {
   private _zNear: number; // near plane distance
   private _zFar: number; // far plane distance
   private viewMatrixPrevious: Mat4;
+  private projMatrixPrevious: Mat4;
 
 
   /**
@@ -105,6 +106,7 @@ export class Camera {
     this._zFar = zFar;
     console.assert(this._zFar != null);
     this.viewMatrixPrevious = this.viewMatrix();
+    this.projMatrixPrevious = this.projMatrix();
   }
 
   public setKeyFrame(p: Vec3, o: Quat, d: number) {
@@ -355,15 +357,25 @@ export class Camera {
   }
 
   public getViewMatrixPrevious() {
+    return this.packMat4(this.viewMatrixPrevious);
+  }
+
+  public getProjMatrixPrevious() {
+    return this.packMat4(this.projMatrixPrevious);
+  }
+
+  private packMat4(mat: Mat4) {
     const res = new Float32Array(16);
     for (let i = 0; i < 4; i++) {
       for (let j = 0; j < 4; j++) {
-        res[i * 4 + j] = this.viewMatrixPrevious.col(i)[j];
+        res[i * 4 + j] = mat.col(i)[j];
       }
     }
     return res;
   }
+
   public updateViewMatrixNext() {
       this.viewMatrixPrevious = this.viewMatrix();
+      this.projMatrixPrevious = this.projMatrix();
   }
 }

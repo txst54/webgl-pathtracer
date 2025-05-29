@@ -27,6 +27,15 @@ vec3 uniformlyRandomDirection(float seed) {
 vec3 uniformlyRandomVector(float seed) {
     return uniformlyRandomDirection(seed) * sqrt(random(vec3(36.7539, 50.3658, 306.2759), seed));
 }
+
+// https://rh8liuqy.github.io/Uniform_Disk.html
+vec2 uniformlyRandomDisk(float seed, int radius) {
+    float u = random(vec3(12.9898, 78.233, 151.7182), seed);
+    float v = random(vec3(63.7264, 10.873, 623.6736), seed + 1.0);
+    float x = float(radius) * sqrt(u) * cos(2.0 * pi * u);
+    float y = float(radius) * sqrt(v) * sin(2.0 * pi * v);
+    return vec2(x, y);
+}
 // end_macro
 
 // begin_macro{CONSTANTS}
