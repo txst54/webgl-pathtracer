@@ -29,7 +29,7 @@ vec3 roomCubeMax = vec3(10.0, 10.0, 10.0);
 vec3 sphereCenter = vec3(-3.0, -7.0, 3.0);
 float sphereRadius = 3.0;
 vec3 light = vec3(6.0, -8.0, -6.0);
-float lightIntensity = 0.25;
+float lightIntensity = 0.2;
 float infinity = 10000.0;
 float epsilon = 0.00001;
 float lightSize = 2.0;
@@ -312,7 +312,7 @@ vec3 roomCubeMax = vec3(10.0, 10.0, 10.0);
 vec3 sphereCenter = vec3(-3.0, -7.0, 3.0);
 float sphereRadius = 3.0;
 vec3 light = vec3(6.0, -8.0, -6.0);
-float lightIntensity = 0.25;
+float lightIntensity = 0.2;
 float infinity = 10000.0;
 float epsilon = 0.00001;
 float lightSize = 2.0;
@@ -526,7 +526,7 @@ vec3 roomCubeMax = vec3(10.0, 10.0, 10.0);
 vec3 sphereCenter = vec3(-3.0, -7.0, 3.0);
 float sphereRadius = 3.0;
 vec3 light = vec3(6.0, -8.0, -6.0);
-float lightIntensity = 0.25;
+float lightIntensity = 0.2;
 float infinity = 10000.0;
 float epsilon = 0.00001;
 float lightSize = 2.0;
@@ -849,7 +849,7 @@ vec3 roomCubeMax = vec3(10.0, 10.0, 10.0);
 vec3 sphereCenter = vec3(-3.0, -7.0, 3.0);
 float sphereRadius = 3.0;
 vec3 light = vec3(6.0, -8.0, -6.0);
-float lightIntensity = 0.25;
+float lightIntensity = 0.2;
 float infinity = 10000.0;
 float epsilon = 0.00001;
 float lightSize = 2.0;
@@ -1204,7 +1204,7 @@ void main() {
     vec3 colorMask = vec3(1.0);
     vec3 accumulatedColor = vec3(0.0);
     vec3 directLight = vec3(0.0);
-    for (int bounce = 0; bounce < 3; bounce++) {
+    for (int bounce = 0; bounce < 1; bounce++) {
         Isect isect = intersect(ray, origin);
         if (isect.t == infinity) {
             break;
@@ -1239,7 +1239,7 @@ void main() {
         float ndotr = dot(isect.normal, nextRay);
         if (ndotr <= 0.0 || pdfCosine <= epsilon) break;
         vec3 brdf = isect.albedo / pi;
-        colorMask *= brdf * ndotr / pdfCosine;
+        // colorMask *= brdf * ndotr / pdfCosine;
 
         origin = nextOrigin;
         ray = nextRay;
@@ -1265,6 +1265,7 @@ uniform sampler2D uReservoirData2;
 
 layout(location = 0) out vec4 out_ReservoirData1;
 layout(location = 1) out vec4 out_ReservoirData2;
+layout(location = 2) out vec4 fragColor;
 
 #define M1 5       // num of bsdf sampled candidates
 #define M2 5       // num of light candidates
@@ -1277,7 +1278,7 @@ vec3 roomCubeMax = vec3(10.0, 10.0, 10.0);
 vec3 sphereCenter = vec3(-3.0, -7.0, 3.0);
 float sphereRadius = 3.0;
 vec3 light = vec3(6.0, -8.0, -6.0);
-float lightIntensity = 0.25;
+float lightIntensity = 0.2;
 float infinity = 10000.0;
 float epsilon = 0.00001;
 float lightSize = 2.0;
@@ -1638,6 +1639,7 @@ void main() {
     if (clip_prev.w < epsilon) {
         out_ReservoirData1 = packReservoir1(r_current);
         out_ReservoirData2 = packReservoir2(r_current);
+        fragColor = vec4(vec3(0.5), 1.0);
         return;
     }
     vec3 ndc_prev = clip_prev.xyz / clip_prev.w;
@@ -1645,6 +1647,7 @@ void main() {
     if (uv_prev.x < 0.0 || uv_prev.x >= 1.0 || uv_prev.y < 0.0 || uv_prev.y >= 1.0) {
         out_ReservoirData1 = packReservoir1(r_current);
         out_ReservoirData2 = packReservoir2(r_current);
+        fragColor = vec4(1.0, 1.0, 1.0, 1.0);
         return;
      }
 
@@ -1653,35 +1656,64 @@ void main() {
     vec4 uReservoirData2Vec = texture(uReservoirData2, uv_prev);
     ReSTIR_Reservoir r_prev = unpackReservoir(uReservoirData1Vec, uReservoirData2Vec);
 
+    if (r_prev.W_Y < epsilon) {
+        out_ReservoirData1 = packReservoir1(r_current);
+        out_ReservoirData2 = packReservoir2(r_current);
+        fragColor = vec4(0.5, 0.0, 0.0, 1.0); // magenta
+        return;
+    }
+
+    vec3 lightDir = normalize(r_prev.Y - isect.position);
+    float lightDistance = length(r_prev.Y - isect.position);
+
+    vec3 rayOrigin = isect.position + isect.normal * epsilon;
+    Isect visibilityCheck = intersect(lightDir, rayOrigin);
+
+    // If we hit something before reaching the light, there's occlusion
+    if (visibilityCheck.t < infinity && length(visibilityCheck.position - isect.position) < lightDistance) {
+        out_ReservoirData1 = packReservoir1(r_current);
+        out_ReservoirData2 = packReservoir2(r_current);
+        fragColor = vec4(1.0, 1.0, 0.0, 1.0); // yellow
+        return;
+    }
+
     float misWeight;
     float reservoirWeight;
     float reservoirStrategy;
+    vec3 centerBrdf = isect.albedo / pi;
+    float neighborTargetFunctionAtCenter = evaluate_target_function_at_center(r_prev.Y, isect, centerBrdf);
+    float centerTargetFunctionAtCenter = r_current.p_hat;
 
     // resample temporal neighbor
-    misWeight = r_prev.p_hat / (r_prev.p_hat + r_current.p_hat);
-    reservoirWeight = misWeight * r_current.p_hat * r_prev.W_Y;
+    misWeight = neighborTargetFunctionAtCenter / (neighborTargetFunctionAtCenter + centerTargetFunctionAtCenter);
+    reservoirWeight = misWeight * neighborTargetFunctionAtCenter * r_prev.W_Y;
     r_out.w_sum += reservoirWeight;
     reservoirStrategy = random(vec3(67.71, 31.91, 83.17), seed);
     if (reservoirStrategy < reservoirWeight / r_out.w_sum) {
-        r_out.p_hat = r_prev.p_hat;
+        r_out.p_hat = neighborTargetFunctionAtCenter;
         r_out.Y = r_prev.Y;
         r_out.t = r_prev.t;
+        fragColor = vec4(0.0, 0.0, 1.0, 1.0); // blue
     }
 
     // resample initial candidates
-    misWeight = r_current.p_hat / (r_prev.p_hat + r_current.p_hat);
-    reservoirWeight = misWeight * r_current.p_hat * r_current.W_Y;
+    misWeight = centerTargetFunctionAtCenter / (neighborTargetFunctionAtCenter + centerTargetFunctionAtCenter);
+    reservoirWeight = misWeight * centerTargetFunctionAtCenter * r_current.W_Y;
     r_out.w_sum += reservoirWeight;
     reservoirStrategy = random(vec3(67.71, 31.91, 83.17), seed + 1.0);
     if (reservoirStrategy < reservoirWeight / r_out.w_sum) {
-        r_out.p_hat = r_current.p_hat;
+        r_out.p_hat = centerTargetFunctionAtCenter;
         r_out.Y = r_current.Y;
         r_out.t = r_current.t;
+        fragColor = vec4(1.0, 0.0, 0.0, 1.0); // current
     }
 
     r_out.W_Y = r_out.w_sum / r_out.p_hat;
     out_ReservoirData1 = packReservoir1(r_out);
     out_ReservoirData2 = packReservoir2(r_out);
+    if (fragColor == vec4(0.0)) {
+        fragColor = vec4(0.0, 1.0, 0.0, 1.0);
+    }
 }
 
 `;
@@ -1707,7 +1739,7 @@ vec3 roomCubeMax = vec3(10.0, 10.0, 10.0);
 vec3 sphereCenter = vec3(-3.0, -7.0, 3.0);
 float sphereRadius = 3.0;
 vec3 light = vec3(6.0, -8.0, -6.0);
-float lightIntensity = 0.25;
+float lightIntensity = 0.2;
 float infinity = 10000.0;
 float epsilon = 0.00001;
 float lightSize = 2.0;
@@ -2052,7 +2084,7 @@ ReSTIR_Reservoir sample_lights_restir_spatial(vec3 ray, float seed, Isect isectC
 }
 
 void main() {
-    vec2 coord = (gl_FragCoord.xy + 0.5) / uRes;
+    vec2 coord = (gl_FragCoord.xy) / uRes;
     vec3 ray = normalize(initialRay);
     vec3 origin = uEye;
 
@@ -2062,7 +2094,7 @@ void main() {
     vec3 colorMask = vec3(1.0);
     vec3 accumulatedColor = vec3(0.0);
     vec3 directLight = vec3(0.0);
-    for (int bounce = 0; bounce < 3; bounce++) {
+    for (int bounce = 0; bounce < 1; bounce++) {
         Isect isect = intersect(ray, origin);
         if (isect.t == infinity) {
             break;
@@ -2074,7 +2106,11 @@ void main() {
         ReSTIR_Reservoir r;
         // can only do ReSTIR on initial bounce, everything else we will do via RIS
         if(bounce == 0) {
-            r = sample_lights_restir_spatial(ray, baseSeed, isect);
+            // r = sample_lights_restir_spatial(ray, baseSeed, isect);
+            vec4 uCandidate1 = texture(uReservoirData1, coord);
+            vec4 uCandidate2 = texture(uReservoirData2, coord);
+
+            r = unpackReservoir(uCandidate1, uCandidate2);
             out_ReservoirData1 = packReservoir1(r);
             out_ReservoirData2 = packReservoir2(r);
             r.c = min(512.0, r.c);
@@ -2099,7 +2135,7 @@ void main() {
         float ndotr = dot(isect.normal, nextRay);
         if (ndotr <= 0.0 || pdfCosine <= epsilon) break;
         vec3 brdf = isect.albedo / pi;
-        colorMask *= brdf * ndotr / pdfCosine;
+        // colorMask *= brdf * ndotr / pdfCosine;
 
         origin = nextOrigin;
         ray = nextRay;
@@ -2126,7 +2162,7 @@ vec3 roomCubeMax = vec3(10.0, 10.0, 10.0);
 vec3 sphereCenter = vec3(-3.0, -7.0, 3.0);
 float sphereRadius = 3.0;
 vec3 light = vec3(6.0, -8.0, -6.0);
-float lightIntensity = 0.25;
+float lightIntensity = 0.2;
 float infinity = 10000.0;
 float epsilon = 0.00001;
 float lightSize = 2.0;
@@ -2487,7 +2523,7 @@ vec3 roomCubeMax = vec3(10.0, 10.0, 10.0);
 vec3 sphereCenter = vec3(-3.0, -7.0, 3.0);
 float sphereRadius = 3.0;
 vec3 light = vec3(6.0, -8.0, -6.0);
-float lightIntensity = 0.25;
+float lightIntensity = 0.2;
 float infinity = 10000.0;
 float epsilon = 0.00001;
 float lightSize = 2.0;

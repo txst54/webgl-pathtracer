@@ -33,6 +33,7 @@ export class PathTracer extends CanvasAnimation {
   private reSTIRInitRenderPass: RenderPass;
   private reSTIRSpatialRenderPass: RenderPass;
   private reSTIRTemporalRenderPass: RenderPass;
+  private reSTIRTemporalRenderPass1: RenderPass;
   private reSTIRTspatialRenderPass: RenderPass;
   private reSTIRSTDrawPass: RenderPass;
 
@@ -52,13 +53,22 @@ export class PathTracer extends CanvasAnimation {
   private ReSTIR_reservoirTexturesST: WebGLTexture[];
   private reservoirTextures: WebGLTexture[]; // ReSTIR_PT
   private RESTIR_NUM_RESERVOIR_TEXTURES: number = 2;
-  private NUM_RESERVOIR_TEXTURES: number = 3;
+  private NUM_RESERVOIR_TEXTURES: number = 2;
+
+  private MODE_NAMES: string[] = ["MIS", "RIS", "ReSTIR Spatial Pass", "ReSTIR Temporal Pass"];
 
   /* PathTracer Info */
   private sampleCount: number;
   private pingpong: number = 0;
   private mode = 0;
   private NUM_MODES = 4;
+
+  /* Frame Counter Info */
+  private frameCount: number = 0;
+  private lastTime: number = performance.now();
+  private fps: number = 0;
+  private frameTime: number = 0;
+  private fpsUpdateInterval: number = 500; // Update every 500ms
 
   /* Global Rendering Info */
   private lightPosition: Vec4;
@@ -75,6 +85,13 @@ export class PathTracer extends CanvasAnimation {
     super(canvas);
     this.mode = 0;
     this.canvas2d = document.getElementById("textCanvas") as HTMLCanvasElement;
+
+    // Match drawing buffer size for 2D canvas as well
+    this.canvas2d.width = this.canvas2d.clientWidth;
+    this.canvas2d.height = this.canvas2d.clientHeight;
+    canvas.width = canvas.clientWidth;
+    canvas.height = canvas.clientHeight;
+    console.log("Canvas Resolution:", this.canvas2d.width, "X", this.canvas2d.height);
   
     this.ctx = Debugger.makeDebugContext(this.ctx);
     let gl = this.ctx;
@@ -138,7 +155,9 @@ export class PathTracer extends CanvasAnimation {
 
 
     this.reSTIRTemporalRenderPass = new RenderPass(gl, pathTracerVSText, ReSTIR_temporalPassFSText);
-    this.initSpatialTemporalReSTIR(this.reSTIRTemporalRenderPass, this.NUM_RESERVOIR_TEXTURES, this.ReSTIR_reservoirTexturesST, this.NUM_RESERVOIR_TEXTURES);
+    this.reSTIRTemporalRenderPass1 = new RenderPass(gl, pathTracerVSText, ReSTIR_temporalPassFSText);
+    this.initSpatialTemporalReSTIR(this.reSTIRTemporalRenderPass1, this.NUM_RESERVOIR_TEXTURES, this.ReSTIR_reservoirTexturesST, this.NUM_RESERVOIR_TEXTURES);
+    this.initSpatialTemporalReSTIR(this.reSTIRTemporalRenderPass, this.NUM_RESERVOIR_TEXTURES, this.ReSTIR_reservoirTexturesST, 0);
 
     this.reSTIRTspatialRenderPass = new RenderPass(gl, pathTracerVSText, ReSTIR_tspatialPassFSText);
     this.initSpatialTemporalReSTIR(this.reSTIRTspatialRenderPass, this.NUM_RESERVOIR_TEXTURES, this.ReSTIR_reservoirTexturesST, 0);
@@ -148,6 +167,37 @@ export class PathTracer extends CanvasAnimation {
 
     this.lightPosition = new Vec4([-1000, 1000, -1000, 1]);
     this.backgroundColor = new Vec4([0.0, 0.37254903, 0.37254903, 1.0]);    
+  }
+
+  private updateFPS(): void {
+    this.frameCount++;
+    const currentTime = performance.now();
+    const deltaTime = currentTime - this.lastTime;
+
+    // Update frame time for current frame
+    this.frameTime = deltaTime;
+
+    // Update FPS every interval
+    if (deltaTime >= this.fpsUpdateInterval) {
+      this.fps = (this.frameCount * 1000) / deltaTime;
+      this.frameCount = 0;
+      this.lastTime = currentTime;
+
+      // Update HTML elements
+      this.updateFPSDisplay();
+    }
+  }
+
+  private updateFPSDisplay(): void {
+    const fpsElement = document.getElementById('fpsValue');
+    const frameTimeElement = document.getElementById('frameTimeValue');
+    const sampleElement = document.getElementById('sampleValue');
+    const modeElement = document.getElementById('mode');
+
+    if (fpsElement) fpsElement.textContent = this.fps.toFixed(1);
+    if (frameTimeElement) frameTimeElement.textContent = this.frameTime.toFixed(2);
+    if (sampleElement) sampleElement.textContent = this.sampleCount.toString();
+    if (modeElement) modeElement.textContent = this.MODE_NAMES[this.mode];
   }
 
   public swapMode() {
@@ -380,7 +430,8 @@ export class PathTracer extends CanvasAnimation {
 
 
 
-    this.drawScene(0, 0, 1280, 960);
+    this.drawScene(0, 0, this.canvas2d.width, this.canvas2d.height);
+    this.updateFPS();
   }
 
   private drawScene(x: number, y: number, width: number, height: number): void {
@@ -393,7 +444,7 @@ export class PathTracer extends CanvasAnimation {
 
       gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer_pt);
       gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.textures[writeIndex], 0);
-      gl.bindTexture(gl.TEXTURE_2D, this.textures[0]);
+      gl.bindTexture(gl.TEXTURE_2D, this.textures[this.pingpong]);
       this.pathTracerRenderPass.draw();
       // 6. Swap textures (ping-pong)
       this.pingpong = writeIndex;
@@ -416,6 +467,7 @@ export class PathTracer extends CanvasAnimation {
       this.reSTIRSpatialRenderPass.draw();
     } else {
       // ReSTIR Render
+      /*
       gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer_restirstt);
       gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.ReSTIR_reservoirTexturesST[0], 0);
       gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, this.ReSTIR_reservoirTexturesST[1], 0);
@@ -439,7 +491,26 @@ export class PathTracer extends CanvasAnimation {
       this.reSTIRTspatialRenderPass.draw(); // i want to show the texture in that i drew in ReSTIR_reservoirTexturesST[4]
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
       this.reSTIRSTDrawPass.draw();
-
+       */
+      const writeStartIndex = this.pingpong == 0 ? 2 : 0;
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer_restirstt);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.ReSTIR_reservoirTexturesST[writeStartIndex], 0);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, this.ReSTIR_reservoirTexturesST[writeStartIndex + 1], 0);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT2, gl.TEXTURE_2D, this.ReSTIR_reservoirTexturesST[4], 0);
+      gl.drawBuffers([
+        gl.COLOR_ATTACHMENT0,
+        gl.COLOR_ATTACHMENT1,
+        gl.COLOR_ATTACHMENT2
+      ]);
+      if (this.pingpong == 0) {
+        this.reSTIRTemporalRenderPass.draw(); //this gets me my 2 textures that i feed into the next stage
+      } else {
+        this.reSTIRTemporalRenderPass1.draw(); //this gets me my 2 textures that i feed into the next stage
+      }
+      this.pingpong = 1 - this.pingpong;
+      this.gui.getCamera().updateViewMatrixNext();
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      this.reSTIRSTDrawPass.draw();
     }
 
   }

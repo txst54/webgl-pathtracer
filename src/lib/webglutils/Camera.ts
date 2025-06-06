@@ -375,7 +375,7 @@ export class Camera {
   }
 
   public updateViewMatrixNext() {
-      this.viewMatrixPrevious = this.viewMatrix();
-      this.projMatrixPrevious = this.projMatrix();
+      this.viewMatrixPrevious = this.viewMatrix().copy();
+      this.projMatrixPrevious = this.projMatrix().copy();
   }
 }

@@ -27,7 +27,7 @@ layout(location = 1) out vec4 out_ReservoirData2;
 // use_macro{DIRECT_LIGHT_RIS}
 
 void main() {
-    vec2 coord = (gl_FragCoord.xy + 0.5) / uRes;
+    vec2 coord = (gl_FragCoord.xy) / uRes;
     vec3 ray = normalize(initialRay);
     vec3 origin = uEye;
 
@@ -37,7 +37,7 @@ void main() {
     vec3 colorMask = vec3(1.0);
     vec3 accumulatedColor = vec3(0.0);
     vec3 directLight = vec3(0.0);
-    for (int bounce = 0; bounce < 3; bounce++) {
+    for (int bounce = 0; bounce < 1; bounce++) {
         Isect isect = intersect(ray, origin);
         if (isect.t == infinity) {
             break;
@@ -49,7 +49,11 @@ void main() {
         ReSTIR_Reservoir r;
         // can only do ReSTIR on initial bounce, everything else we will do via RIS
         if(bounce == 0) {
-            r = sample_lights_restir_spatial(ray, baseSeed, isect);
+            // r = sample_lights_restir_spatial(ray, baseSeed, isect);
+            vec4 uCandidate1 = texture(uReservoirData1, coord);
+            vec4 uCandidate2 = texture(uReservoirData2, coord);
+
+            r = unpackReservoir(uCandidate1, uCandidate2);
             out_ReservoirData1 = packReservoir1(r);
             out_ReservoirData2 = packReservoir2(r);
             r.c = min(512.0, r.c);
@@ -74,7 +78,7 @@ void main() {
         float ndotr = dot(isect.normal, nextRay);
         if (ndotr <= 0.0 || pdfCosine <= epsilon) break;
         vec3 brdf = isect.albedo / pi;
-        colorMask *= brdf * ndotr / pdfCosine;
+        // colorMask *= brdf * ndotr / pdfCosine;
 
         origin = nextOrigin;
         ray = nextRay;
