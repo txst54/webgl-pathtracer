@@ -37,6 +37,7 @@ layout(location = 2) out vec4 fragColor;
 void main() {
     vec3 ray = normalize(initialRay);
     vec3 origin = uEye;
+    fragColor = vec4(0.0);
 
     float timeEntropy = hashValue(uTime);
     float seed = hashCoords(gl_FragCoord.xy + timeEntropy * vec2(1.0, -1.0));
@@ -71,7 +72,7 @@ void main() {
     if (r_prev.W_Y < epsilon) {
         out_ReservoirData1 = packReservoir1(r_current);
         out_ReservoirData2 = packReservoir2(r_current);
-        fragColor = vec4(0.5, 0.0, 0.0, 1.0); // magenta
+        fragColor = vec4(0.5, 0.0, 0.0, 1.0); // maroon
         return;
     }
 
@@ -85,7 +86,7 @@ void main() {
     if (!visibilityCheck.isLight) {
         out_ReservoirData1 = packReservoir1(r_current);
         out_ReservoirData2 = packReservoir2(r_current);
-        fragColor = vec4(1.0, 1.0, 0.0, 1.0); // yellow
+        fragColor = vec4(1.0, 0.0, 0.0, 1.0); // yellow
         return;
     }
 

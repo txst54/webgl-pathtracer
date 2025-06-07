@@ -19,10 +19,6 @@ uniform vec2 uRes;
 out vec4 fragColor;
 
 void main() {
-    float stableTime = floor(uTime * 10.0) / 10.0;
-    vec3 newLight = light + uniformlyRandomVector(stableTime - 53.0) * lightSize;
-
-    // Avoid using 'texture' as a variable name
     vec3 texColor = texture(uTexture, gl_FragCoord.xy / uRes).rgb;
     fragColor = vec4(texColor, 1.0);
 }
