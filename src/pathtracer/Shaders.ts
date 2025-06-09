@@ -1189,17 +1189,15 @@ ReSTIR_Reservoir sample_lights_restir_spatial(vec3 ray, float seed, Isect isectC
     return r;
 }
 
-void main() {
-    vec2 coord = (gl_FragCoord.xy + 0.5) / uRes;
-    vec3 ray = normalize(initialRay);
-    vec3 origin = uEye;
-
-    float timeEntropy = hashValue(uTime);
-    float seed = hashCoords(gl_FragCoord.xy + timeEntropy * vec2(1.0, -1.0));
-
+vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
     vec3 colorMask = vec3(1.0);
     vec3 accumulatedColor = vec3(0.0);
     vec3 directLight = vec3(0.0);
+
+    float timeEntropy = hashValue(uTime);
+    float seed = hashCoords(gl_FragCoord.xy + timeEntropy * vec2(1.0, -1.0));
+    float total_dist = 0.0;
+
     for (int bounce = 0; bounce < 1; bounce++) {
         Isect isect = intersect(ray, origin);
         if (isect.t == infinity) {
@@ -1207,12 +1205,12 @@ void main() {
         }
 
         vec3 nextOrigin = isect.position + isect.normal * epsilon;
-        float baseSeed = hashValue(float(bounce) * 51.19 + 79.0 + seed);
+        float baseSeed = hashValue(float(bounce) * 51.19 + 79.0) + seed;
 
-        ReSTIR_Reservoir r;
-        // can only do ReSTIR on initial bounce, everything else we will do via RIS
+        ReSTIR_Reservoir r = initializeReservoir();
         if(bounce == 0) {
-            r = sample_lights_restir_spatial(ray, baseSeed, isect);
+            // r = sample_lights_restir_spatial(ray, baseSeed, isect);
+            r = unpackReservoir(texture(uReservoirData1, gl_FragCoord.xy), texture(uReservoirData2, gl_FragCoord.xy));
             r.c = min(512.0, r.c);
         } else {
             r = sample_lights_ris(isect, ray, NB_BSDF, NB_LIGHT, baseSeed);
@@ -1240,7 +1238,13 @@ void main() {
         origin = nextOrigin;
         ray = nextRay;
     }
-    fragColor = vec4(accumulatedColor, 1.0);
+
+    return accumulatedColor;
+}
+
+void main() {
+    vec3 color = calculateColor(uEye, initialRay, light);
+    fragColor = vec4(color, 1.0);
 }
 `;
 
@@ -1667,10 +1671,11 @@ void main() {
     Isect visibilityCheck = intersect(lightDir, rayOrigin);
 
     // If we dont hit the light there is occlusion
-    if (!visibilityCheck.isLight) {
+    if (!visibilityCheck.isLight || abs(r_current.t - r_prev.t) > 0.1 * r_current.t) {
         out_ReservoirData1 = packReservoir1(r_current);
         out_ReservoirData2 = packReservoir2(r_current);
-        fragColor = vec4(1.0, 0.0, 0.0, 1.0); // yellow
+        float diff = abs(r_current.t - r_prev.t) / r_current.t * 10.0;
+        fragColor = vec4(0.0, 0.0, 1.0, 1.0); // blue
         return;
     }
 
@@ -1690,7 +1695,7 @@ void main() {
         r_out.p_hat = neighborTargetFunctionAtCenter;
         r_out.Y = r_prev.Y;
         r_out.t = r_prev.t;
-        fragColor = vec4(0.0, 0.0, 1.0, 1.0); // blue
+        fragColor = vec4(1.0, 0.0, 0.0, 1.0); // red temporal
     }
 
     // resample initial candidates
@@ -1702,7 +1707,7 @@ void main() {
         r_out.p_hat = centerTargetFunctionAtCenter;
         r_out.Y = r_current.Y;
         r_out.t = r_current.t;
-        fragColor = vec4(1.0, 0.0, 0.0, 1.0); // current
+        fragColor = vec4(0.0, 1.0, 0.0, 1.0); // current
     }
 
     r_out.W_Y = r_out.w_sum / r_out.p_hat;
@@ -2457,7 +2462,7 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
     float seed = hashCoords(gl_FragCoord.xy + timeEntropy * vec2(1.0, -1.0));
     float total_dist = 0.0;
 
-    for (int bounce = 0; bounce < 3; bounce++) {
+    for (int bounce = 0; bounce < 1; bounce++) {
         Isect isect = intersect(ray, origin);
         if (isect.t == infinity) {
             break;
@@ -2485,7 +2490,7 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
         float ndotr = dot(isect.normal, nextRay);
         if (ndotr <= 0.0 || pdfCosine <= epsilon) break;
         vec3 brdf = isect.albedo / pi;
-        colorMask *= brdf * ndotr / pdfCosine;
+        // colorMask *= brdf * ndotr / pdfCosine;
 
         origin = nextOrigin;
         ray = nextRay;

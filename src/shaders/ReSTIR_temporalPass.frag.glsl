@@ -83,10 +83,11 @@ void main() {
     Isect visibilityCheck = intersect(lightDir, rayOrigin);
 
     // If we dont hit the light there is occlusion
-    if (!visibilityCheck.isLight) {
+    if (!visibilityCheck.isLight || abs(r_current.t - r_prev.t) > 0.1 * r_current.t) {
         out_ReservoirData1 = packReservoir1(r_current);
         out_ReservoirData2 = packReservoir2(r_current);
-        fragColor = vec4(1.0, 0.0, 0.0, 1.0); // yellow
+        float diff = abs(r_current.t - r_prev.t) / r_current.t * 10.0;
+        fragColor = vec4(0.0, 0.0, 1.0, 1.0); // blue
         return;
     }
 
@@ -106,7 +107,7 @@ void main() {
         r_out.p_hat = neighborTargetFunctionAtCenter;
         r_out.Y = r_prev.Y;
         r_out.t = r_prev.t;
-        fragColor = vec4(0.0, 0.0, 1.0, 1.0); // blue
+        fragColor = vec4(1.0, 0.0, 0.0, 1.0); // red temporal
     }
 
     // resample initial candidates
@@ -118,7 +119,7 @@ void main() {
         r_out.p_hat = centerTargetFunctionAtCenter;
         r_out.Y = r_current.Y;
         r_out.t = r_current.t;
-        fragColor = vec4(1.0, 0.0, 0.0, 1.0); // current
+        fragColor = vec4(0.0, 1.0, 0.0, 1.0); // current
     }
 
     r_out.W_Y = r_out.w_sum / r_out.p_hat;

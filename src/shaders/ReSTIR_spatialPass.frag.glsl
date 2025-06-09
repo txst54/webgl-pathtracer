@@ -23,17 +23,15 @@ uniform sampler2D uReservoirData2;
 // use_macro{DIRECT_LIGHT_RESTIR}
 // use_macro{DIRECT_LIGHT_RIS}
 
-void main() {
-    vec2 coord = (gl_FragCoord.xy + 0.5) / uRes;
-    vec3 ray = normalize(initialRay);
-    vec3 origin = uEye;
-
-    float timeEntropy = hashValue(uTime);
-    float seed = hashCoords(gl_FragCoord.xy + timeEntropy * vec2(1.0, -1.0));
-
+vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
     vec3 colorMask = vec3(1.0);
     vec3 accumulatedColor = vec3(0.0);
     vec3 directLight = vec3(0.0);
+
+    float timeEntropy = hashValue(uTime);
+    float seed = hashCoords(gl_FragCoord.xy + timeEntropy * vec2(1.0, -1.0));
+    float total_dist = 0.0;
+
     for (int bounce = 0; bounce < 1; bounce++) {
         Isect isect = intersect(ray, origin);
         if (isect.t == infinity) {
@@ -41,12 +39,12 @@ void main() {
         }
 
         vec3 nextOrigin = isect.position + isect.normal * epsilon;
-        float baseSeed = hashValue(float(bounce) * 51.19 + 79.0 + seed);
+        float baseSeed = hashValue(float(bounce) * 51.19 + 79.0) + seed;
 
-        ReSTIR_Reservoir r;
-        // can only do ReSTIR on initial bounce, everything else we will do via RIS
+        ReSTIR_Reservoir r = initializeReservoir();
         if(bounce == 0) {
-            r = sample_lights_restir_spatial(ray, baseSeed, isect);
+            // r = sample_lights_restir_spatial(ray, baseSeed, isect);
+            r = unpackReservoir(texture(uReservoirData1, gl_FragCoord.xy), texture(uReservoirData2, gl_FragCoord.xy));
             r.c = min(512.0, r.c);
         } else {
             r = sample_lights_ris(isect, ray, NB_BSDF, NB_LIGHT, baseSeed);
@@ -74,5 +72,11 @@ void main() {
         origin = nextOrigin;
         ray = nextRay;
     }
-    fragColor = vec4(accumulatedColor, 1.0);
+
+    return accumulatedColor;
+}
+
+void main() {
+    vec3 color = calculateColor(uEye, initialRay, light);
+    fragColor = vec4(color, 1.0);
 }

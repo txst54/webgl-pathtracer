@@ -24,8 +24,8 @@ ReSTIR_Reservoir unpackReservoir(vec4 data1, vec4 data2) {
     r.p_hat = data1.a;
     r.W_Y = data2.r;
     r.w_sum = data2.g;
-    r.c = data2.b;
-    r.t = data2.a;
+    r.t = data2.b;
+    r.c = data2.a;
     return r;
 }
 
@@ -34,7 +34,7 @@ vec4 packReservoir1(ReSTIR_Reservoir r) {
 }
 
 vec4 packReservoir2(ReSTIR_Reservoir r) {
-    return vec4(r.W_Y, r.w_sum, r.c, r.t); // zero pad unused values
+    return vec4(r.W_Y, r.w_sum, r.t, r.c); // zero pad unused values
 }
 
 // end_macro
