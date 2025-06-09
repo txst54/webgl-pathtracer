@@ -9,8 +9,8 @@ out vec4 fragColor;
 uniform sampler2D uReservoirData1;
 uniform sampler2D uReservoirData2;
 
-#define NB_BSDF 5
-#define NB_LIGHT 5
+#define NB_BSDF 10
+#define NB_LIGHT 10
 
 // use_macro{CONSTANTS}
 // use_macro{RAND_LIB}
@@ -23,7 +23,7 @@ uniform sampler2D uReservoirData2;
 // use_macro{DIRECT_LIGHT_RESTIR}
 // use_macro{DIRECT_LIGHT_RIS}
 
-vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
+vec4 calculateColor(vec3 origin, vec3 ray, vec3 light) {
     vec3 colorMask = vec3(1.0);
     vec3 accumulatedColor = vec3(0.0);
     vec3 directLight = vec3(0.0);
@@ -31,6 +31,7 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
     float timeEntropy = hashValue(uTime);
     float seed = hashCoords(gl_FragCoord.xy + timeEntropy * vec2(1.0, -1.0));
     float total_dist = 0.0;
+    vec2 uv = gl_FragCoord.xy / uRes;
 
     for (int bounce = 0; bounce < 1; bounce++) {
         Isect isect = intersect(ray, origin);
@@ -43,8 +44,7 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
 
         ReSTIR_Reservoir r = initializeReservoir();
         if(bounce == 0) {
-            // r = sample_lights_restir_spatial(ray, baseSeed, isect);
-            r = unpackReservoir(texture(uReservoirData1, gl_FragCoord.xy), texture(uReservoirData2, gl_FragCoord.xy));
+            r = sample_lights_restir_spatial(ray, baseSeed, isect);
             r.c = min(512.0, r.c);
         } else {
             r = sample_lights_ris(isect, ray, NB_BSDF, NB_LIGHT, baseSeed);
@@ -67,16 +67,16 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
         float ndotr = dot(isect.normal, nextRay);
         if (ndotr <= 0.0 || pdfCosine <= epsilon) break;
         vec3 brdf = isect.albedo / pi;
-        // colorMask *= brdf * ndotr / pdfCosine;
+        colorMask *= brdf * ndotr / pdfCosine;
 
         origin = nextOrigin;
         ray = nextRay;
     }
 
-    return accumulatedColor;
+    return vec4(accumulatedColor, 1.0);
 }
 
 void main() {
-    vec3 color = calculateColor(uEye, initialRay, light);
-    fragColor = vec4(color, 1.0);
+    vec4 color = calculateColor(uEye, initialRay, light);
+    fragColor = color;
 }

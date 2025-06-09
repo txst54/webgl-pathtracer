@@ -512,7 +512,6 @@ uniform vec3 uEye;
 uniform vec2 uRes;
 uniform float uTime;
 in vec3 initialRay;
-
 layout(location = 0) out vec4 out_ReservoirData1;
 layout(location = 1) out vec4 out_ReservoirData2;
 
@@ -736,8 +735,8 @@ ReSTIR_Reservoir unpackReservoir(vec4 data1, vec4 data2) {
     r.p_hat = data1.a;
     r.W_Y = data2.r;
     r.w_sum = data2.g;
-    r.c = data2.b;
-    r.t = data2.a;
+    r.t = data2.b;
+    r.c = data2.a;
     return r;
 }
 
@@ -746,7 +745,7 @@ vec4 packReservoir1(ReSTIR_Reservoir r) {
 }
 
 vec4 packReservoir2(ReSTIR_Reservoir r) {
-    return vec4(r.W_Y, r.w_sum, r.c, r.t); // zero pad unused values
+    return vec4(r.W_Y, r.w_sum, r.t, r.c); // zero pad unused values
 }
 ReSTIR_Reservoir sample_lights_ris(Isect isect, vec3 ray, int nb_bsdf, int nb_light, float seed) {
     ReSTIR_Reservoir r = initializeReservoir();
@@ -839,8 +838,8 @@ out vec4 fragColor;
 uniform sampler2D uReservoirData1;
 uniform sampler2D uReservoirData2;
 
-#define NB_BSDF 5
-#define NB_LIGHT 5vec3 roomCubeMin = vec3(-10.0, -10.0, -10.0);
+#define NB_BSDF 10
+#define NB_LIGHT 10vec3 roomCubeMin = vec3(-10.0, -10.0, -10.0);
 vec3 roomCubeMax = vec3(10.0, 10.0, 10.0);
 vec3 sphereCenter = vec3(-3.0, -7.0, 3.0);
 float sphereRadius = 3.0;
@@ -1059,8 +1058,8 @@ ReSTIR_Reservoir unpackReservoir(vec4 data1, vec4 data2) {
     r.p_hat = data1.a;
     r.W_Y = data2.r;
     r.w_sum = data2.g;
-    r.c = data2.b;
-    r.t = data2.a;
+    r.t = data2.b;
+    r.c = data2.a;
     return r;
 }
 
@@ -1069,11 +1068,12 @@ vec4 packReservoir1(ReSTIR_Reservoir r) {
 }
 
 vec4 packReservoir2(ReSTIR_Reservoir r) {
-    return vec4(r.W_Y, r.w_sum, r.c, r.t); // zero pad unused values
+    return vec4(r.W_Y, r.w_sum, r.t, r.c); // zero pad unused values
 }
 
 ReSTIR_Reservoir sample_lights_restir_spatial(vec3 ray, float seed, Isect isectCenter) {
-    ReSTIR_Reservoir rCenter = unpackReservoir(texture(uReservoirData1, gl_FragCoord.xy), texture(uReservoirData2, gl_FragCoord.xy));
+    vec2 uv = gl_FragCoord.xy / uRes;
+    ReSTIR_Reservoir rCenter = unpackReservoir(texture(uReservoirData1, uv), texture(uReservoirData2, uv));
     ReSTIR_Reservoir r = initializeReservoir();
     int MAX_NEIGHBORS = 16;
     ReSTIR_Reservoir candidates[17];
@@ -1189,7 +1189,7 @@ ReSTIR_Reservoir sample_lights_restir_spatial(vec3 ray, float seed, Isect isectC
     return r;
 }
 
-vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
+vec4 calculateColor(vec3 origin, vec3 ray, vec3 light) {
     vec3 colorMask = vec3(1.0);
     vec3 accumulatedColor = vec3(0.0);
     vec3 directLight = vec3(0.0);
@@ -1197,6 +1197,7 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
     float timeEntropy = hashValue(uTime);
     float seed = hashCoords(gl_FragCoord.xy + timeEntropy * vec2(1.0, -1.0));
     float total_dist = 0.0;
+    vec2 uv = gl_FragCoord.xy / uRes;
 
     for (int bounce = 0; bounce < 1; bounce++) {
         Isect isect = intersect(ray, origin);
@@ -1209,8 +1210,7 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
 
         ReSTIR_Reservoir r = initializeReservoir();
         if(bounce == 0) {
-            // r = sample_lights_restir_spatial(ray, baseSeed, isect);
-            r = unpackReservoir(texture(uReservoirData1, gl_FragCoord.xy), texture(uReservoirData2, gl_FragCoord.xy));
+            r = sample_lights_restir_spatial(ray, baseSeed, isect);
             r.c = min(512.0, r.c);
         } else {
             r = sample_lights_ris(isect, ray, NB_BSDF, NB_LIGHT, baseSeed);
@@ -1233,18 +1233,18 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
         float ndotr = dot(isect.normal, nextRay);
         if (ndotr <= 0.0 || pdfCosine <= epsilon) break;
         vec3 brdf = isect.albedo / pi;
-        // colorMask *= brdf * ndotr / pdfCosine;
+        colorMask *= brdf * ndotr / pdfCosine;
 
         origin = nextOrigin;
         ray = nextRay;
     }
 
-    return accumulatedColor;
+    return vec4(accumulatedColor, 1.0);
 }
 
 void main() {
-    vec3 color = calculateColor(uEye, initialRay, light);
-    fragColor = vec4(color, 1.0);
+    vec4 color = calculateColor(uEye, initialRay, light);
+    fragColor = color;
 }
 `;
 
@@ -1387,8 +1387,8 @@ ReSTIR_Reservoir unpackReservoir(vec4 data1, vec4 data2) {
     r.p_hat = data1.a;
     r.W_Y = data2.r;
     r.w_sum = data2.g;
-    r.c = data2.b;
-    r.t = data2.a;
+    r.t = data2.b;
+    r.c = data2.a;
     return r;
 }
 
@@ -1397,7 +1397,7 @@ vec4 packReservoir1(ReSTIR_Reservoir r) {
 }
 
 vec4 packReservoir2(ReSTIR_Reservoir r) {
-    return vec4(r.W_Y, r.w_sum, r.c, r.t); // zero pad unused values
+    return vec4(r.W_Y, r.w_sum, r.t, r.c); // zero pad unused values
 }
 float random(vec3 scale, float seed) {
     return fract(sin(dot(gl_FragCoord.xyz + seed, scale)) * 43758.5453 + seed);
@@ -1506,7 +1506,8 @@ float balanceHeuristic(float pdf_a, float nb_pdf_a, float pdf_b, float nb_pdf_b)
     return dot(contribution, vec3(0.3086, 0.6094, 0.0820));
 }
 ReSTIR_Reservoir sample_lights_restir_spatial(vec3 ray, float seed, Isect isectCenter) {
-    ReSTIR_Reservoir rCenter = unpackReservoir(texture(uReservoirData1, gl_FragCoord.xy), texture(uReservoirData2, gl_FragCoord.xy));
+    vec2 uv = gl_FragCoord.xy / uRes;
+    ReSTIR_Reservoir rCenter = unpackReservoir(texture(uReservoirData1, uv), texture(uReservoirData2, uv));
     ReSTIR_Reservoir r = initializeReservoir();
     int MAX_NEIGHBORS = 16;
     ReSTIR_Reservoir candidates[17];
@@ -1955,8 +1956,8 @@ ReSTIR_Reservoir unpackReservoir(vec4 data1, vec4 data2) {
     r.p_hat = data1.a;
     r.W_Y = data2.r;
     r.w_sum = data2.g;
-    r.c = data2.b;
-    r.t = data2.a;
+    r.t = data2.b;
+    r.c = data2.a;
     return r;
 }
 
@@ -1965,11 +1966,12 @@ vec4 packReservoir1(ReSTIR_Reservoir r) {
 }
 
 vec4 packReservoir2(ReSTIR_Reservoir r) {
-    return vec4(r.W_Y, r.w_sum, r.c, r.t); // zero pad unused values
+    return vec4(r.W_Y, r.w_sum, r.t, r.c); // zero pad unused values
 }
 
 ReSTIR_Reservoir sample_lights_restir_spatial(vec3 ray, float seed, Isect isectCenter) {
-    ReSTIR_Reservoir rCenter = unpackReservoir(texture(uReservoirData1, gl_FragCoord.xy), texture(uReservoirData2, gl_FragCoord.xy));
+    vec2 uv = gl_FragCoord.xy / uRes;
+    ReSTIR_Reservoir rCenter = unpackReservoir(texture(uReservoirData1, uv), texture(uReservoirData2, uv));
     ReSTIR_Reservoir r = initializeReservoir();
     int MAX_NEIGHBORS = 16;
     ReSTIR_Reservoir candidates[17];
@@ -2378,8 +2380,8 @@ ReSTIR_Reservoir unpackReservoir(vec4 data1, vec4 data2) {
     r.p_hat = data1.a;
     r.W_Y = data2.r;
     r.w_sum = data2.g;
-    r.c = data2.b;
-    r.t = data2.a;
+    r.t = data2.b;
+    r.c = data2.a;
     return r;
 }
 
@@ -2388,7 +2390,7 @@ vec4 packReservoir1(ReSTIR_Reservoir r) {
 }
 
 vec4 packReservoir2(ReSTIR_Reservoir r) {
-    return vec4(r.W_Y, r.w_sum, r.c, r.t); // zero pad unused values
+    return vec4(r.W_Y, r.w_sum, r.t, r.c); // zero pad unused values
 }
 ReSTIR_Reservoir sample_lights_ris(Isect isect, vec3 ray, int nb_bsdf, int nb_light, float seed) {
     ReSTIR_Reservoir r = initializeReservoir();
@@ -2453,7 +2455,7 @@ vec4 packReservoir2(ReSTIR_Reservoir r) {
 
 out vec4 fragColor;
 
-vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
+vec4 calculateColor(vec3 origin, vec3 ray, vec3 light) {
     vec3 colorMask = vec3(1.0);
     vec3 accumulatedColor = vec3(0.0);
     vec3 directLight = vec3(0.0);
@@ -2496,7 +2498,7 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
         ray = nextRay;
     }
 
-    return accumulatedColor;
+    return vec4(accumulatedColor, 1.0);
 }
 
 void main() {
@@ -2504,9 +2506,9 @@ void main() {
     // Avoid using 'texture' as a variable name
     vec3 texColor = texture(uTexture, gl_FragCoord.xy / uRes).rgb;
 
-    vec3 color = calculateColor(uEye, initialRay, light);
+    vec4 color = calculateColor(uEye, initialRay, light);
     // vec3 color = mix(calculateColor(uEye, initialRay, light), texColor, uTextureWeight);
-    fragColor = vec4(color, 1.0);
+    fragColor = color;
 }
 `;
 

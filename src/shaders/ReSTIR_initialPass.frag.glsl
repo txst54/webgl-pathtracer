@@ -5,7 +5,6 @@ uniform vec3 uEye;
 uniform vec2 uRes;
 uniform float uTime;
 in vec3 initialRay;
-
 layout(location = 0) out vec4 out_ReservoirData1;
 layout(location = 1) out vec4 out_ReservoirData2;
 

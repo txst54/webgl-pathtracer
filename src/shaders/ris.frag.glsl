@@ -24,7 +24,7 @@ uniform vec2 uRes;
 
 out vec4 fragColor;
 
-vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
+vec4 calculateColor(vec3 origin, vec3 ray, vec3 light) {
     vec3 colorMask = vec3(1.0);
     vec3 accumulatedColor = vec3(0.0);
     vec3 directLight = vec3(0.0);
@@ -67,7 +67,7 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
         ray = nextRay;
     }
 
-    return accumulatedColor;
+    return vec4(accumulatedColor, 1.0);
 }
 
 void main() {
@@ -75,7 +75,7 @@ void main() {
     // Avoid using 'texture' as a variable name
     vec3 texColor = texture(uTexture, gl_FragCoord.xy / uRes).rgb;
 
-    vec3 color = calculateColor(uEye, initialRay, light);
+    vec4 color = calculateColor(uEye, initialRay, light);
     // vec3 color = mix(calculateColor(uEye, initialRay, light), texColor, uTextureWeight);
-    fragColor = vec4(color, 1.0);
+    fragColor = color;
 }

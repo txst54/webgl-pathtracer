@@ -20,6 +20,7 @@ export default class ReSTIRSpatialRenderer extends BaseRenderer {
         const gl = this.gl as WebGL2RenderingContext;
 
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.frameBuffer);
+        // gl.bindFramebuffer(gl.FRAMEBUFFER, null);
         gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.textureConfig.textures[0], 0);
         gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, this.textureConfig.textures[1], 0);
         gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
