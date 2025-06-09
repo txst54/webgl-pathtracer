@@ -33,7 +33,7 @@ vec4 calculateColor(vec3 origin, vec3 ray, vec3 light) {
     float seed = hashCoords(gl_FragCoord.xy + timeEntropy * vec2(1.0, -1.0));
     float total_dist = 0.0;
 
-    for (int bounce = 0; bounce < 1; bounce++) {
+    for (int bounce = 0; bounce < 3; bounce++) {
         Isect isect = intersect(ray, origin);
         if (isect.t == infinity) {
             break;
@@ -61,7 +61,7 @@ vec4 calculateColor(vec3 origin, vec3 ray, vec3 light) {
         float ndotr = dot(isect.normal, nextRay);
         if (ndotr <= 0.0 || pdfCosine <= epsilon) break;
         vec3 brdf = isect.albedo / pi;
-        // colorMask *= brdf * ndotr / pdfCosine;
+        colorMask *= brdf * ndotr / pdfCosine;
 
         origin = nextOrigin;
         ray = nextRay;

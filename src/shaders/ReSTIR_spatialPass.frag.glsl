@@ -33,7 +33,7 @@ vec4 calculateColor(vec3 origin, vec3 ray, vec3 light) {
     float total_dist = 0.0;
     vec2 uv = gl_FragCoord.xy / uRes;
 
-    for (int bounce = 0; bounce < 1; bounce++) {
+    for (int bounce = 0; bounce < 3; bounce++) {
         Isect isect = intersect(ray, origin);
         if (isect.t == infinity) {
             break;
