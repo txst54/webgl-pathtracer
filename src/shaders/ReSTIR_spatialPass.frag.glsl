@@ -9,8 +9,8 @@ out vec4 fragColor;
 uniform sampler2D uReservoirData1;
 uniform sampler2D uReservoirData2;
 
-#define NB_BSDF 10
-#define NB_LIGHT 10
+#define NB_BSDF 1
+#define NB_LIGHT 1
 
 // use_macro{CONSTANTS}
 // use_macro{RAND_LIB}
@@ -33,7 +33,7 @@ vec4 calculateColor(vec3 origin, vec3 ray, vec3 light) {
     float total_dist = 0.0;
     vec2 uv = gl_FragCoord.xy / uRes;
 
-    for (int bounce = 0; bounce < 3; bounce++) {
+    for (int bounce = 0; bounce < 1; bounce++) {
         Isect isect = intersect(ray, origin);
         if (isect.t == infinity) {
             break;
@@ -45,6 +45,7 @@ vec4 calculateColor(vec3 origin, vec3 ray, vec3 light) {
         ReSTIR_Reservoir r = initializeReservoir();
         if(bounce == 0) {
             r = sample_lights_restir_spatial(ray, baseSeed, isect);
+            // return vec4(vec3(r.c), 1.0);
             r.c = min(512.0, r.c);
         } else {
             r = sample_lights_ris(isect, ray, NB_BSDF, NB_LIGHT, baseSeed);

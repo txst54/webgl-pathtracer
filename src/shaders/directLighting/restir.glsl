@@ -11,7 +11,7 @@ ReSTIR_Reservoir sample_lights_restir_spatial(vec3 ray, float seed, Isect isectC
     float sum_p_hat = rCenter.p_hat;
     vec3 centerBrdf = isectCenter.albedo / pi;
     for (int candidateIndex = 0; candidateIndex < MAX_NEIGHBORS; candidateIndex++) {
-        vec2 dxy = uniformlyRandomDisk(hashValue(seed + float(candidateIndex)), 16);
+        vec2 dxy = uniformlyRandomDisk(hashValue(seed + float(candidateIndex)), 8);
         vec2 neighbor = gl_FragCoord.xy + vec2(int(dxy.x), int(dxy.y));
         if (neighbor.x < 0.0 || neighbor.y < 0.0 ||
         neighbor.x >= uRes.x || neighbor.y >= uRes.y) continue;
@@ -22,14 +22,23 @@ ReSTIR_Reservoir sample_lights_restir_spatial(vec3 ray, float seed, Isect isectC
         vec4 uCandidate2 = texture(uReservoirData2, uv);
 
         candidates[count] = unpackReservoir(uCandidate1, uCandidate2);
-
-        // geometry selection heuristic
         vec2 percent = (neighbor / uRes);
         vec3 candidateRay = normalize(mix(mix(uRay00, uRay01, percent.y), mix(uRay10, uRay11, percent.y), percent.x));
         Isect candidateIsect = intersect(candidateRay, uEye);
-        if (abs(candidateIsect.t - isectCenter.t) > 0.5 * isectCenter.t ||
-            dot(candidateIsect.normal, isectCenter.normal) < 0.8 ||
-            candidates[count].p_hat <= epsilon) continue;
+        if (candidateIndex == 0) {
+            r.c = candidates[count].p_hat <= epsilon || dot(candidateIsect.normal, isectCenter.normal) < 0.95 || abs(candidateIsect.t - isectCenter.t) / isectCenter.t > 0.3 ? 1.0 : 0.0;
+        }
+        if (
+            dot(candidateIsect.normal, isectCenter.normal) < 0.95 ||
+            abs(candidateIsect.t - isectCenter.t) / isectCenter.t > 0.3 || abs(candidateIsect.t - isectCenter.t) / isectCenter.t < 0.1)
+        continue;
+        // geometry selection heuristic
+//        vec2 percent = (neighbor / uRes);
+//        vec3 candidateRay = normalize(mix(mix(uRay00, uRay01, percent.y), mix(uRay10, uRay11, percent.y), percent.x));
+//        Isect candidateIsect = intersect(candidateRay, uEye);
+//        if (abs(candidateIsect.t - isectCenter.t) > 0.5 * isectCenter.t ||
+//            dot(candidateIsect.normal, isectCenter.normal) < 0.8 ||
+//            candidates[count].p_hat <= epsilon) continue;
 
 //        Isect candidateLightIsect = intersect(normalize(candidates[count].Y - isectCenter.position), isectCenter.position);
 //        if (!candidateLightIsect.isLight) continue;

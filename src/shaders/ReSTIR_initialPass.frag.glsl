@@ -8,8 +8,8 @@ in vec3 initialRay;
 layout(location = 0) out vec4 out_ReservoirData1;
 layout(location = 1) out vec4 out_ReservoirData2;
 
-#define NB_BSDF 10
-#define NB_LIGHT 10
+#define NB_BSDF 1
+#define NB_LIGHT 1
 
 // use_macro{CONSTANTS}
 // use_macro{RAND_LIB}

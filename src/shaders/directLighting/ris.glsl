@@ -58,6 +58,7 @@ ReSTIR_Reservoir sample_lights_ris(Isect isect, vec3 ray, int nb_bsdf, int nb_li
     if (r.w_sum > 0.0) {
         r.W_Y = r.w_sum / max(r.p_hat, epsilon);
     }
+    r.c = 1.0;
     return r;
 }
 //end_macro

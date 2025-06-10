@@ -9,8 +9,8 @@ uniform sampler2D uTexture;
 uniform float uTextureWeight;
 uniform vec2 uRes;
 
-#define NB_BSDF 10
-#define NB_LIGHT 10
+#define NB_BSDF 1
+#define NB_LIGHT 1
 
 // use_macro{CONSTANTS}
 // use_macro{RAND_LIB}
@@ -33,7 +33,7 @@ vec4 calculateColor(vec3 origin, vec3 ray, vec3 light) {
     float seed = hashCoords(gl_FragCoord.xy + timeEntropy * vec2(1.0, -1.0));
     float total_dist = 0.0;
 
-    for (int bounce = 0; bounce < 3; bounce++) {
+    for (int bounce = 0; bounce < 1; bounce++) {
         Isect isect = intersect(ray, origin);
         if (isect.t == infinity) {
             break;

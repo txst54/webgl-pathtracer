@@ -9,7 +9,7 @@ out vec3 initialRay;
 
 void main() {
     vec2 percent = aVertPos.xy * 0.5 + 0.5;
-    initialRay = mix(mix(uRay00, uRay01, percent.y), mix(uRay10, uRay11, percent.y), percent.x);
+    initialRay = normalize(mix(mix(uRay00, uRay01, percent.y), mix(uRay10, uRay11, percent.y), percent.x));
     gl_Position = vec4(aVertPos, 0.0, 1.0);
 }
 `;
@@ -26,13 +26,15 @@ uniform sampler2D uTexture;
 uniform float uTextureWeight;
 uniform vec2 uRes;vec3 roomCubeMin = vec3(-10.0, -10.0, -10.0);
 vec3 roomCubeMax = vec3(10.0, 10.0, 10.0);
-vec3 sphereCenter = vec3(-3.0, -7.0, 3.0);
+vec3 wallCubeMax = vec3(10.0, 5.0, 1.0);
+vec3 wallCubeMin = vec3(0.0, -10.0, -1.0);
+vec3 sphereCenter = vec3(-3.0, -7.0, -3.0);
 float sphereRadius = 3.0;
-vec3 light = vec3(6.0, -8.0, -6.0);
-float lightIntensity = 0.2;
+vec3 light = vec3(6.0, 8.0, 6.0);
+float lightIntensity = 5.0;
 float infinity = 10000.0;
 float epsilon = 0.00001;
-float lightSize = 2.0;
+float lightSize = 0.2;
 float pi = 3.14159265359;
 float maxBounces = 100.0;
 vec3 ReSTIR_lightEmission = vec3(0.5); // Light intensity/colorfloat random(vec3 scale, float seed) {
@@ -124,8 +126,10 @@ Isect intersect(vec3 ray, vec3 origin) {
     vec2 tRoom = intersectCube(origin, ray, roomCubeMin, roomCubeMax);
     float tSphere = intersectSphere(origin, ray, sphereCenter, sphereRadius);
     float tLight = intersectSphere(origin, ray, light, lightSize);
+    vec2 tWall = intersectCube(origin, ray, wallCubeMin, wallCubeMax);
     float t = infinity;
     if (tRoom.x < tRoom.y) t = tRoom.y;
+    if (tWall.x < tWall.y && tWall.x > epsilon && tWall.x < t) t = tWall.x;
     if (tSphere < t) t = tSphere;
     if (tLight < t) t = tLight;
 
@@ -142,6 +146,9 @@ Isect intersect(vec3 ray, vec3 origin) {
         isect.normal = -normalForCube(isect.position, roomCubeMin, roomCubeMax);
         if(isect.position.x < -9.9999) isect.albedo = vec3(0.1, 0.5, 1.0);
         else if(isect.position.x > 9.9999) isect.albedo = vec3(1.0, 0.9, 0.1);
+    }  else if (t == tWall.x) {
+        isect.normal = normalForCube(isect.position, wallCubeMin, wallCubeMax);
+        isect.albedo = vec3(1.0); // Wall color
     } else if (t == tSphere) {
         isect.normal = normalForSphere(isect.position, sphereCenter, sphereRadius);
     } else if (t == tLight) {
@@ -222,7 +229,7 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
     float roulette = random(vec3(1.0), dot(gl_FragCoord.xy, vec2(12.9898, 78.233)) + uTime * 51.79);
     int num_iters = int(ceil(log(1.0 - roulette) / log(0.9)));
     float total_dist = 0.0;
-    for (int bounce = 0; bounce < 3; bounce++) {
+    for (int bounce = 0; bounce < 1; bounce++) {
         Isect isect = intersect(ray, origin);
         if (isect.t == infinity) {
             break;
@@ -309,13 +316,15 @@ uniform sampler2D uTexture;
 uniform float uTextureWeight;
 uniform vec2 uRes;vec3 roomCubeMin = vec3(-10.0, -10.0, -10.0);
 vec3 roomCubeMax = vec3(10.0, 10.0, 10.0);
-vec3 sphereCenter = vec3(-3.0, -7.0, 3.0);
+vec3 wallCubeMax = vec3(10.0, 5.0, 1.0);
+vec3 wallCubeMin = vec3(0.0, -10.0, -1.0);
+vec3 sphereCenter = vec3(-3.0, -7.0, -3.0);
 float sphereRadius = 3.0;
-vec3 light = vec3(6.0, -8.0, -6.0);
-float lightIntensity = 0.2;
+vec3 light = vec3(6.0, 8.0, 6.0);
+float lightIntensity = 5.0;
 float infinity = 10000.0;
 float epsilon = 0.00001;
-float lightSize = 2.0;
+float lightSize = 0.2;
 float pi = 3.14159265359;
 float maxBounces = 100.0;
 vec3 ReSTIR_lightEmission = vec3(0.5); // Light intensity/colorfloat random(vec3 scale, float seed) {
@@ -407,8 +416,10 @@ Isect intersect(vec3 ray, vec3 origin) {
     vec2 tRoom = intersectCube(origin, ray, roomCubeMin, roomCubeMax);
     float tSphere = intersectSphere(origin, ray, sphereCenter, sphereRadius);
     float tLight = intersectSphere(origin, ray, light, lightSize);
+    vec2 tWall = intersectCube(origin, ray, wallCubeMin, wallCubeMax);
     float t = infinity;
     if (tRoom.x < tRoom.y) t = tRoom.y;
+    if (tWall.x < tWall.y && tWall.x > epsilon && tWall.x < t) t = tWall.x;
     if (tSphere < t) t = tSphere;
     if (tLight < t) t = tLight;
 
@@ -425,6 +436,9 @@ Isect intersect(vec3 ray, vec3 origin) {
         isect.normal = -normalForCube(isect.position, roomCubeMin, roomCubeMax);
         if(isect.position.x < -9.9999) isect.albedo = vec3(0.1, 0.5, 1.0);
         else if(isect.position.x > 9.9999) isect.albedo = vec3(1.0, 0.9, 0.1);
+    }  else if (t == tWall.x) {
+        isect.normal = normalForCube(isect.position, wallCubeMin, wallCubeMax);
+        isect.albedo = vec3(1.0); // Wall color
     } else if (t == tSphere) {
         isect.normal = normalForSphere(isect.position, sphereCenter, sphereRadius);
     } else if (t == tLight) {
@@ -515,16 +529,18 @@ in vec3 initialRay;
 layout(location = 0) out vec4 out_ReservoirData1;
 layout(location = 1) out vec4 out_ReservoirData2;
 
-#define NB_BSDF 10
-#define NB_LIGHT 10vec3 roomCubeMin = vec3(-10.0, -10.0, -10.0);
+#define NB_BSDF 1
+#define NB_LIGHT 1vec3 roomCubeMin = vec3(-10.0, -10.0, -10.0);
 vec3 roomCubeMax = vec3(10.0, 10.0, 10.0);
-vec3 sphereCenter = vec3(-3.0, -7.0, 3.0);
+vec3 wallCubeMax = vec3(10.0, 5.0, 1.0);
+vec3 wallCubeMin = vec3(0.0, -10.0, -1.0);
+vec3 sphereCenter = vec3(-3.0, -7.0, -3.0);
 float sphereRadius = 3.0;
-vec3 light = vec3(6.0, -8.0, -6.0);
-float lightIntensity = 0.2;
+vec3 light = vec3(6.0, 8.0, 6.0);
+float lightIntensity = 5.0;
 float infinity = 10000.0;
 float epsilon = 0.00001;
-float lightSize = 2.0;
+float lightSize = 0.2;
 float pi = 3.14159265359;
 float maxBounces = 100.0;
 vec3 ReSTIR_lightEmission = vec3(0.5); // Light intensity/colorfloat random(vec3 scale, float seed) {
@@ -616,8 +632,10 @@ Isect intersect(vec3 ray, vec3 origin) {
     vec2 tRoom = intersectCube(origin, ray, roomCubeMin, roomCubeMax);
     float tSphere = intersectSphere(origin, ray, sphereCenter, sphereRadius);
     float tLight = intersectSphere(origin, ray, light, lightSize);
+    vec2 tWall = intersectCube(origin, ray, wallCubeMin, wallCubeMax);
     float t = infinity;
     if (tRoom.x < tRoom.y) t = tRoom.y;
+    if (tWall.x < tWall.y && tWall.x > epsilon && tWall.x < t) t = tWall.x;
     if (tSphere < t) t = tSphere;
     if (tLight < t) t = tLight;
 
@@ -634,6 +652,9 @@ Isect intersect(vec3 ray, vec3 origin) {
         isect.normal = -normalForCube(isect.position, roomCubeMin, roomCubeMax);
         if(isect.position.x < -9.9999) isect.albedo = vec3(0.1, 0.5, 1.0);
         else if(isect.position.x > 9.9999) isect.albedo = vec3(1.0, 0.9, 0.1);
+    }  else if (t == tWall.x) {
+        isect.normal = normalForCube(isect.position, wallCubeMin, wallCubeMax);
+        isect.albedo = vec3(1.0); // Wall color
     } else if (t == tSphere) {
         isect.normal = normalForSphere(isect.position, sphereCenter, sphereRadius);
     } else if (t == tLight) {
@@ -805,6 +826,7 @@ vec4 packReservoir2(ReSTIR_Reservoir r) {
     if (r.w_sum > 0.0) {
         r.W_Y = r.w_sum / max(r.p_hat, epsilon);
     }
+    r.c = 1.0;
     return r;
 }
 
@@ -838,16 +860,18 @@ out vec4 fragColor;
 uniform sampler2D uReservoirData1;
 uniform sampler2D uReservoirData2;
 
-#define NB_BSDF 10
-#define NB_LIGHT 10vec3 roomCubeMin = vec3(-10.0, -10.0, -10.0);
+#define NB_BSDF 1
+#define NB_LIGHT 1vec3 roomCubeMin = vec3(-10.0, -10.0, -10.0);
 vec3 roomCubeMax = vec3(10.0, 10.0, 10.0);
-vec3 sphereCenter = vec3(-3.0, -7.0, 3.0);
+vec3 wallCubeMax = vec3(10.0, 5.0, 1.0);
+vec3 wallCubeMin = vec3(0.0, -10.0, -1.0);
+vec3 sphereCenter = vec3(-3.0, -7.0, -3.0);
 float sphereRadius = 3.0;
-vec3 light = vec3(6.0, -8.0, -6.0);
-float lightIntensity = 0.2;
+vec3 light = vec3(6.0, 8.0, 6.0);
+float lightIntensity = 5.0;
 float infinity = 10000.0;
 float epsilon = 0.00001;
-float lightSize = 2.0;
+float lightSize = 0.2;
 float pi = 3.14159265359;
 float maxBounces = 100.0;
 vec3 ReSTIR_lightEmission = vec3(0.5); // Light intensity/colorfloat random(vec3 scale, float seed) {
@@ -939,8 +963,10 @@ Isect intersect(vec3 ray, vec3 origin) {
     vec2 tRoom = intersectCube(origin, ray, roomCubeMin, roomCubeMax);
     float tSphere = intersectSphere(origin, ray, sphereCenter, sphereRadius);
     float tLight = intersectSphere(origin, ray, light, lightSize);
+    vec2 tWall = intersectCube(origin, ray, wallCubeMin, wallCubeMax);
     float t = infinity;
     if (tRoom.x < tRoom.y) t = tRoom.y;
+    if (tWall.x < tWall.y && tWall.x > epsilon && tWall.x < t) t = tWall.x;
     if (tSphere < t) t = tSphere;
     if (tLight < t) t = tLight;
 
@@ -957,6 +983,9 @@ Isect intersect(vec3 ray, vec3 origin) {
         isect.normal = -normalForCube(isect.position, roomCubeMin, roomCubeMax);
         if(isect.position.x < -9.9999) isect.albedo = vec3(0.1, 0.5, 1.0);
         else if(isect.position.x > 9.9999) isect.albedo = vec3(1.0, 0.9, 0.1);
+    }  else if (t == tWall.x) {
+        isect.normal = normalForCube(isect.position, wallCubeMin, wallCubeMax);
+        isect.albedo = vec3(1.0); // Wall color
     } else if (t == tSphere) {
         isect.normal = normalForSphere(isect.position, sphereCenter, sphereRadius);
     } else if (t == tLight) {
@@ -1082,7 +1111,7 @@ ReSTIR_Reservoir sample_lights_restir_spatial(vec3 ray, float seed, Isect isectC
     float sum_p_hat = rCenter.p_hat;
     vec3 centerBrdf = isectCenter.albedo / pi;
     for (int candidateIndex = 0; candidateIndex < MAX_NEIGHBORS; candidateIndex++) {
-        vec2 dxy = uniformlyRandomDisk(hashValue(seed + float(candidateIndex)), 16);
+        vec2 dxy = uniformlyRandomDisk(hashValue(seed + float(candidateIndex)), 8);
         vec2 neighbor = gl_FragCoord.xy + vec2(int(dxy.x), int(dxy.y));
         if (neighbor.x < 0.0 || neighbor.y < 0.0 ||
         neighbor.x >= uRes.x || neighbor.y >= uRes.y) continue;
@@ -1093,14 +1122,23 @@ ReSTIR_Reservoir sample_lights_restir_spatial(vec3 ray, float seed, Isect isectC
         vec4 uCandidate2 = texture(uReservoirData2, uv);
 
         candidates[count] = unpackReservoir(uCandidate1, uCandidate2);
-
-        // geometry selection heuristic
         vec2 percent = (neighbor / uRes);
         vec3 candidateRay = normalize(mix(mix(uRay00, uRay01, percent.y), mix(uRay10, uRay11, percent.y), percent.x));
         Isect candidateIsect = intersect(candidateRay, uEye);
-        if (abs(candidateIsect.t - isectCenter.t) > 0.5 * isectCenter.t ||
-            dot(candidateIsect.normal, isectCenter.normal) < 0.8 ||
-            candidates[count].p_hat <= epsilon) continue;
+        if (candidateIndex == 0) {
+            r.c = candidates[count].p_hat <= epsilon || dot(candidateIsect.normal, isectCenter.normal) < 0.95 || abs(candidateIsect.t - isectCenter.t) / isectCenter.t > 0.3 ? 1.0 : 0.0;
+        }
+        if (
+            dot(candidateIsect.normal, isectCenter.normal) < 0.95 ||
+            abs(candidateIsect.t - isectCenter.t) / isectCenter.t > 0.3 || abs(candidateIsect.t - isectCenter.t) / isectCenter.t < 0.1)
+        continue;
+        // geometry selection heuristic
+//        vec2 percent = (neighbor / uRes);
+//        vec3 candidateRay = normalize(mix(mix(uRay00, uRay01, percent.y), mix(uRay10, uRay11, percent.y), percent.x));
+//        Isect candidateIsect = intersect(candidateRay, uEye);
+//        if (abs(candidateIsect.t - isectCenter.t) > 0.5 * isectCenter.t ||
+//            dot(candidateIsect.normal, isectCenter.normal) < 0.8 ||
+//            candidates[count].p_hat <= epsilon) continue;
 
 //        Isect candidateLightIsect = intersect(normalize(candidates[count].Y - isectCenter.position), isectCenter.position);
 //        if (!candidateLightIsect.isLight) continue;
@@ -1186,6 +1224,7 @@ ReSTIR_Reservoir sample_lights_restir_spatial(vec3 ray, float seed, Isect isectC
     if (r.w_sum > 0.0) {
         r.W_Y = r.w_sum / max(r.p_hat, epsilon);
     }
+    r.c = 1.0;
     return r;
 }
 
@@ -1199,7 +1238,7 @@ vec4 calculateColor(vec3 origin, vec3 ray, vec3 light) {
     float total_dist = 0.0;
     vec2 uv = gl_FragCoord.xy / uRes;
 
-    for (int bounce = 0; bounce < 3; bounce++) {
+    for (int bounce = 0; bounce < 1; bounce++) {
         Isect isect = intersect(ray, origin);
         if (isect.t == infinity) {
             break;
@@ -1211,6 +1250,7 @@ vec4 calculateColor(vec3 origin, vec3 ray, vec3 light) {
         ReSTIR_Reservoir r = initializeReservoir();
         if(bounce == 0) {
             r = sample_lights_restir_spatial(ray, baseSeed, isect);
+            // return vec4(vec3(r.c), 1.0);
             r.c = min(512.0, r.c);
         } else {
             r = sample_lights_ris(isect, ray, NB_BSDF, NB_LIGHT, baseSeed);
@@ -1270,18 +1310,20 @@ layout(location = 2) out vec4 fragColor;
 #define M1 5       // num of bsdf sampled candidates
 #define M2 5       // num of light candidates
 #define PI 3.14159265359
-#define NB_BSDF 10
-#define NB_LIGHT 10
+#define NB_BSDF 1
+#define NB_LIGHT 1
 
 // Assuming the macro expansions from your original shadervec3 roomCubeMin = vec3(-10.0, -10.0, -10.0);
 vec3 roomCubeMax = vec3(10.0, 10.0, 10.0);
-vec3 sphereCenter = vec3(-3.0, -7.0, 3.0);
+vec3 wallCubeMax = vec3(10.0, 5.0, 1.0);
+vec3 wallCubeMin = vec3(0.0, -10.0, -1.0);
+vec3 sphereCenter = vec3(-3.0, -7.0, -3.0);
 float sphereRadius = 3.0;
-vec3 light = vec3(6.0, -8.0, -6.0);
-float lightIntensity = 0.2;
+vec3 light = vec3(6.0, 8.0, 6.0);
+float lightIntensity = 5.0;
 float infinity = 10000.0;
 float epsilon = 0.00001;
-float lightSize = 2.0;
+float lightSize = 0.2;
 float pi = 3.14159265359;
 float maxBounces = 100.0;
 vec3 ReSTIR_lightEmission = vec3(0.5); // Light intensity/colorfloat intersectSphere(vec3 origin, vec3 ray, vec3 sphereCenter, float sphereRadius) {
@@ -1337,8 +1379,10 @@ Isect intersect(vec3 ray, vec3 origin) {
     vec2 tRoom = intersectCube(origin, ray, roomCubeMin, roomCubeMax);
     float tSphere = intersectSphere(origin, ray, sphereCenter, sphereRadius);
     float tLight = intersectSphere(origin, ray, light, lightSize);
+    vec2 tWall = intersectCube(origin, ray, wallCubeMin, wallCubeMax);
     float t = infinity;
     if (tRoom.x < tRoom.y) t = tRoom.y;
+    if (tWall.x < tWall.y && tWall.x > epsilon && tWall.x < t) t = tWall.x;
     if (tSphere < t) t = tSphere;
     if (tLight < t) t = tLight;
 
@@ -1355,6 +1399,9 @@ Isect intersect(vec3 ray, vec3 origin) {
         isect.normal = -normalForCube(isect.position, roomCubeMin, roomCubeMax);
         if(isect.position.x < -9.9999) isect.albedo = vec3(0.1, 0.5, 1.0);
         else if(isect.position.x > 9.9999) isect.albedo = vec3(1.0, 0.9, 0.1);
+    }  else if (t == tWall.x) {
+        isect.normal = normalForCube(isect.position, wallCubeMin, wallCubeMax);
+        isect.albedo = vec3(1.0); // Wall color
     } else if (t == tSphere) {
         isect.normal = normalForSphere(isect.position, sphereCenter, sphereRadius);
     } else if (t == tLight) {
@@ -1516,7 +1563,7 @@ ReSTIR_Reservoir sample_lights_restir_spatial(vec3 ray, float seed, Isect isectC
     float sum_p_hat = rCenter.p_hat;
     vec3 centerBrdf = isectCenter.albedo / pi;
     for (int candidateIndex = 0; candidateIndex < MAX_NEIGHBORS; candidateIndex++) {
-        vec2 dxy = uniformlyRandomDisk(hashValue(seed + float(candidateIndex)), 16);
+        vec2 dxy = uniformlyRandomDisk(hashValue(seed + float(candidateIndex)), 8);
         vec2 neighbor = gl_FragCoord.xy + vec2(int(dxy.x), int(dxy.y));
         if (neighbor.x < 0.0 || neighbor.y < 0.0 ||
         neighbor.x >= uRes.x || neighbor.y >= uRes.y) continue;
@@ -1527,14 +1574,23 @@ ReSTIR_Reservoir sample_lights_restir_spatial(vec3 ray, float seed, Isect isectC
         vec4 uCandidate2 = texture(uReservoirData2, uv);
 
         candidates[count] = unpackReservoir(uCandidate1, uCandidate2);
-
-        // geometry selection heuristic
         vec2 percent = (neighbor / uRes);
         vec3 candidateRay = normalize(mix(mix(uRay00, uRay01, percent.y), mix(uRay10, uRay11, percent.y), percent.x));
         Isect candidateIsect = intersect(candidateRay, uEye);
-        if (abs(candidateIsect.t - isectCenter.t) > 0.5 * isectCenter.t ||
-            dot(candidateIsect.normal, isectCenter.normal) < 0.8 ||
-            candidates[count].p_hat <= epsilon) continue;
+        if (candidateIndex == 0) {
+            r.c = candidates[count].p_hat <= epsilon || dot(candidateIsect.normal, isectCenter.normal) < 0.95 || abs(candidateIsect.t - isectCenter.t) / isectCenter.t > 0.3 ? 1.0 : 0.0;
+        }
+        if (
+            dot(candidateIsect.normal, isectCenter.normal) < 0.95 ||
+            abs(candidateIsect.t - isectCenter.t) / isectCenter.t > 0.3 || abs(candidateIsect.t - isectCenter.t) / isectCenter.t < 0.1)
+        continue;
+        // geometry selection heuristic
+//        vec2 percent = (neighbor / uRes);
+//        vec3 candidateRay = normalize(mix(mix(uRay00, uRay01, percent.y), mix(uRay10, uRay11, percent.y), percent.x));
+//        Isect candidateIsect = intersect(candidateRay, uEye);
+//        if (abs(candidateIsect.t - isectCenter.t) > 0.5 * isectCenter.t ||
+//            dot(candidateIsect.normal, isectCenter.normal) < 0.8 ||
+//            candidates[count].p_hat <= epsilon) continue;
 
 //        Isect candidateLightIsect = intersect(normalize(candidates[count].Y - isectCenter.position), isectCenter.position);
 //        if (!candidateLightIsect.isLight) continue;
@@ -1620,6 +1676,7 @@ ReSTIR_Reservoir sample_lights_restir_spatial(vec3 ray, float seed, Isect isectC
     if (r.w_sum > 0.0) {
         r.W_Y = r.w_sum / max(r.p_hat, epsilon);
     }
+    r.c = 1.0;
     return r;
 }
 
@@ -1688,9 +1745,10 @@ void main() {
     float centerTargetFunctionAtCenter = r_current.p_hat;
 
     // resample temporal neighbor
-    misWeight = neighborTargetFunctionAtCenter / (neighborTargetFunctionAtCenter + centerTargetFunctionAtCenter);
+    misWeight = r_prev.c * neighborTargetFunctionAtCenter / (r_prev.c * neighborTargetFunctionAtCenter + r_current.c * centerTargetFunctionAtCenter);
     reservoirWeight = misWeight * neighborTargetFunctionAtCenter * r_prev.W_Y;
     r_out.w_sum += reservoirWeight;
+    r_out.c += r_prev.c;
     reservoirStrategy = random(vec3(67.71, 31.91, 83.17), seed);
     if (reservoirStrategy < reservoirWeight / r_out.w_sum) {
         r_out.p_hat = neighborTargetFunctionAtCenter;
@@ -1700,9 +1758,10 @@ void main() {
     }
 
     // resample initial candidates
-    misWeight = centerTargetFunctionAtCenter / (neighborTargetFunctionAtCenter + centerTargetFunctionAtCenter);
+    misWeight = r_current.c * centerTargetFunctionAtCenter / (r_prev.c * neighborTargetFunctionAtCenter + r_current.c * centerTargetFunctionAtCenter);
     reservoirWeight = misWeight * centerTargetFunctionAtCenter * r_current.W_Y;
     r_out.w_sum += reservoirWeight;
+    r_out.c += r_current.c;
     reservoirStrategy = random(vec3(67.71, 31.91, 83.17), seed + 1.0);
     if (reservoirStrategy < reservoirWeight / r_out.w_sum) {
         r_out.p_hat = centerTargetFunctionAtCenter;
@@ -1739,13 +1798,15 @@ layout(location = 1) out vec4 out_ReservoirData2;
 #define NB_BSDF 5
 #define NB_LIGHT 5vec3 roomCubeMin = vec3(-10.0, -10.0, -10.0);
 vec3 roomCubeMax = vec3(10.0, 10.0, 10.0);
-vec3 sphereCenter = vec3(-3.0, -7.0, 3.0);
+vec3 wallCubeMax = vec3(10.0, 5.0, 1.0);
+vec3 wallCubeMin = vec3(0.0, -10.0, -1.0);
+vec3 sphereCenter = vec3(-3.0, -7.0, -3.0);
 float sphereRadius = 3.0;
-vec3 light = vec3(6.0, -8.0, -6.0);
-float lightIntensity = 0.2;
+vec3 light = vec3(6.0, 8.0, 6.0);
+float lightIntensity = 5.0;
 float infinity = 10000.0;
 float epsilon = 0.00001;
-float lightSize = 2.0;
+float lightSize = 0.2;
 float pi = 3.14159265359;
 float maxBounces = 100.0;
 vec3 ReSTIR_lightEmission = vec3(0.5); // Light intensity/colorfloat random(vec3 scale, float seed) {
@@ -1837,8 +1898,10 @@ Isect intersect(vec3 ray, vec3 origin) {
     vec2 tRoom = intersectCube(origin, ray, roomCubeMin, roomCubeMax);
     float tSphere = intersectSphere(origin, ray, sphereCenter, sphereRadius);
     float tLight = intersectSphere(origin, ray, light, lightSize);
+    vec2 tWall = intersectCube(origin, ray, wallCubeMin, wallCubeMax);
     float t = infinity;
     if (tRoom.x < tRoom.y) t = tRoom.y;
+    if (tWall.x < tWall.y && tWall.x > epsilon && tWall.x < t) t = tWall.x;
     if (tSphere < t) t = tSphere;
     if (tLight < t) t = tLight;
 
@@ -1855,6 +1918,9 @@ Isect intersect(vec3 ray, vec3 origin) {
         isect.normal = -normalForCube(isect.position, roomCubeMin, roomCubeMax);
         if(isect.position.x < -9.9999) isect.albedo = vec3(0.1, 0.5, 1.0);
         else if(isect.position.x > 9.9999) isect.albedo = vec3(1.0, 0.9, 0.1);
+    }  else if (t == tWall.x) {
+        isect.normal = normalForCube(isect.position, wallCubeMin, wallCubeMax);
+        isect.albedo = vec3(1.0); // Wall color
     } else if (t == tSphere) {
         isect.normal = normalForSphere(isect.position, sphereCenter, sphereRadius);
     } else if (t == tLight) {
@@ -1980,7 +2046,7 @@ ReSTIR_Reservoir sample_lights_restir_spatial(vec3 ray, float seed, Isect isectC
     float sum_p_hat = rCenter.p_hat;
     vec3 centerBrdf = isectCenter.albedo / pi;
     for (int candidateIndex = 0; candidateIndex < MAX_NEIGHBORS; candidateIndex++) {
-        vec2 dxy = uniformlyRandomDisk(hashValue(seed + float(candidateIndex)), 16);
+        vec2 dxy = uniformlyRandomDisk(hashValue(seed + float(candidateIndex)), 8);
         vec2 neighbor = gl_FragCoord.xy + vec2(int(dxy.x), int(dxy.y));
         if (neighbor.x < 0.0 || neighbor.y < 0.0 ||
         neighbor.x >= uRes.x || neighbor.y >= uRes.y) continue;
@@ -1991,14 +2057,23 @@ ReSTIR_Reservoir sample_lights_restir_spatial(vec3 ray, float seed, Isect isectC
         vec4 uCandidate2 = texture(uReservoirData2, uv);
 
         candidates[count] = unpackReservoir(uCandidate1, uCandidate2);
-
-        // geometry selection heuristic
         vec2 percent = (neighbor / uRes);
         vec3 candidateRay = normalize(mix(mix(uRay00, uRay01, percent.y), mix(uRay10, uRay11, percent.y), percent.x));
         Isect candidateIsect = intersect(candidateRay, uEye);
-        if (abs(candidateIsect.t - isectCenter.t) > 0.5 * isectCenter.t ||
-            dot(candidateIsect.normal, isectCenter.normal) < 0.8 ||
-            candidates[count].p_hat <= epsilon) continue;
+        if (candidateIndex == 0) {
+            r.c = candidates[count].p_hat <= epsilon || dot(candidateIsect.normal, isectCenter.normal) < 0.95 || abs(candidateIsect.t - isectCenter.t) / isectCenter.t > 0.3 ? 1.0 : 0.0;
+        }
+        if (
+            dot(candidateIsect.normal, isectCenter.normal) < 0.95 ||
+            abs(candidateIsect.t - isectCenter.t) / isectCenter.t > 0.3 || abs(candidateIsect.t - isectCenter.t) / isectCenter.t < 0.1)
+        continue;
+        // geometry selection heuristic
+//        vec2 percent = (neighbor / uRes);
+//        vec3 candidateRay = normalize(mix(mix(uRay00, uRay01, percent.y), mix(uRay10, uRay11, percent.y), percent.x));
+//        Isect candidateIsect = intersect(candidateRay, uEye);
+//        if (abs(candidateIsect.t - isectCenter.t) > 0.5 * isectCenter.t ||
+//            dot(candidateIsect.normal, isectCenter.normal) < 0.8 ||
+//            candidates[count].p_hat <= epsilon) continue;
 
 //        Isect candidateLightIsect = intersect(normalize(candidates[count].Y - isectCenter.position), isectCenter.position);
 //        if (!candidateLightIsect.isLight) continue;
@@ -2084,6 +2159,7 @@ ReSTIR_Reservoir sample_lights_restir_spatial(vec3 ray, float seed, Isect isectC
     if (r.w_sum > 0.0) {
         r.W_Y = r.w_sum / max(r.p_hat, epsilon);
     }
+    r.c = 1.0;
     return r;
 }
 
@@ -2160,16 +2236,18 @@ uniform sampler2D uTexture;
 uniform float uTextureWeight;
 uniform vec2 uRes;
 
-#define NB_BSDF 10
-#define NB_LIGHT 10vec3 roomCubeMin = vec3(-10.0, -10.0, -10.0);
+#define NB_BSDF 1
+#define NB_LIGHT 1vec3 roomCubeMin = vec3(-10.0, -10.0, -10.0);
 vec3 roomCubeMax = vec3(10.0, 10.0, 10.0);
-vec3 sphereCenter = vec3(-3.0, -7.0, 3.0);
+vec3 wallCubeMax = vec3(10.0, 5.0, 1.0);
+vec3 wallCubeMin = vec3(0.0, -10.0, -1.0);
+vec3 sphereCenter = vec3(-3.0, -7.0, -3.0);
 float sphereRadius = 3.0;
-vec3 light = vec3(6.0, -8.0, -6.0);
-float lightIntensity = 0.2;
+vec3 light = vec3(6.0, 8.0, 6.0);
+float lightIntensity = 5.0;
 float infinity = 10000.0;
 float epsilon = 0.00001;
-float lightSize = 2.0;
+float lightSize = 0.2;
 float pi = 3.14159265359;
 float maxBounces = 100.0;
 vec3 ReSTIR_lightEmission = vec3(0.5); // Light intensity/colorfloat random(vec3 scale, float seed) {
@@ -2261,8 +2339,10 @@ Isect intersect(vec3 ray, vec3 origin) {
     vec2 tRoom = intersectCube(origin, ray, roomCubeMin, roomCubeMax);
     float tSphere = intersectSphere(origin, ray, sphereCenter, sphereRadius);
     float tLight = intersectSphere(origin, ray, light, lightSize);
+    vec2 tWall = intersectCube(origin, ray, wallCubeMin, wallCubeMax);
     float t = infinity;
     if (tRoom.x < tRoom.y) t = tRoom.y;
+    if (tWall.x < tWall.y && tWall.x > epsilon && tWall.x < t) t = tWall.x;
     if (tSphere < t) t = tSphere;
     if (tLight < t) t = tLight;
 
@@ -2279,6 +2359,9 @@ Isect intersect(vec3 ray, vec3 origin) {
         isect.normal = -normalForCube(isect.position, roomCubeMin, roomCubeMax);
         if(isect.position.x < -9.9999) isect.albedo = vec3(0.1, 0.5, 1.0);
         else if(isect.position.x > 9.9999) isect.albedo = vec3(1.0, 0.9, 0.1);
+    }  else if (t == tWall.x) {
+        isect.normal = normalForCube(isect.position, wallCubeMin, wallCubeMax);
+        isect.albedo = vec3(1.0); // Wall color
     } else if (t == tSphere) {
         isect.normal = normalForSphere(isect.position, sphereCenter, sphereRadius);
     } else if (t == tLight) {
@@ -2450,6 +2533,7 @@ vec4 packReservoir2(ReSTIR_Reservoir r) {
     if (r.w_sum > 0.0) {
         r.W_Y = r.w_sum / max(r.p_hat, epsilon);
     }
+    r.c = 1.0;
     return r;
 }
 
@@ -2464,7 +2548,7 @@ vec4 calculateColor(vec3 origin, vec3 ray, vec3 light) {
     float seed = hashCoords(gl_FragCoord.xy + timeEntropy * vec2(1.0, -1.0));
     float total_dist = 0.0;
 
-    for (int bounce = 0; bounce < 3; bounce++) {
+    for (int bounce = 0; bounce < 1; bounce++) {
         Isect isect = intersect(ray, origin);
         if (isect.t == infinity) {
             break;
@@ -2524,13 +2608,15 @@ uniform float uTime;
 
 out vec4 fragColor; // Replaces gl_FragColorvec3 roomCubeMin = vec3(-10.0, -10.0, -10.0);
 vec3 roomCubeMax = vec3(10.0, 10.0, 10.0);
-vec3 sphereCenter = vec3(-3.0, -7.0, 3.0);
+vec3 wallCubeMax = vec3(10.0, 5.0, 1.0);
+vec3 wallCubeMin = vec3(0.0, -10.0, -1.0);
+vec3 sphereCenter = vec3(-3.0, -7.0, -3.0);
 float sphereRadius = 3.0;
-vec3 light = vec3(6.0, -8.0, -6.0);
-float lightIntensity = 0.2;
+vec3 light = vec3(6.0, 8.0, 6.0);
+float lightIntensity = 5.0;
 float infinity = 10000.0;
 float epsilon = 0.00001;
-float lightSize = 2.0;
+float lightSize = 0.2;
 float pi = 3.14159265359;
 float maxBounces = 100.0;
 vec3 ReSTIR_lightEmission = vec3(0.5); // Light intensity/colorfloat random(vec3 scale, float seed) {

@@ -19,8 +19,8 @@ layout(location = 2) out vec4 fragColor;
 #define M1 5       // num of bsdf sampled candidates
 #define M2 5       // num of light candidates
 #define PI 3.14159265359
-#define NB_BSDF 10
-#define NB_LIGHT 10
+#define NB_BSDF 1
+#define NB_LIGHT 1
 
 // Assuming the macro expansions from your original shader
 // use_macro{CONSTANTS}
@@ -99,9 +99,10 @@ void main() {
     float centerTargetFunctionAtCenter = r_current.p_hat;
 
     // resample temporal neighbor
-    misWeight = neighborTargetFunctionAtCenter / (neighborTargetFunctionAtCenter + centerTargetFunctionAtCenter);
+    misWeight = r_prev.c * neighborTargetFunctionAtCenter / (r_prev.c * neighborTargetFunctionAtCenter + r_current.c * centerTargetFunctionAtCenter);
     reservoirWeight = misWeight * neighborTargetFunctionAtCenter * r_prev.W_Y;
     r_out.w_sum += reservoirWeight;
+    r_out.c += r_prev.c;
     reservoirStrategy = random(vec3(67.71, 31.91, 83.17), seed);
     if (reservoirStrategy < reservoirWeight / r_out.w_sum) {
         r_out.p_hat = neighborTargetFunctionAtCenter;
@@ -111,9 +112,10 @@ void main() {
     }
 
     // resample initial candidates
-    misWeight = centerTargetFunctionAtCenter / (neighborTargetFunctionAtCenter + centerTargetFunctionAtCenter);
+    misWeight = r_current.c * centerTargetFunctionAtCenter / (r_prev.c * neighborTargetFunctionAtCenter + r_current.c * centerTargetFunctionAtCenter);
     reservoirWeight = misWeight * centerTargetFunctionAtCenter * r_current.W_Y;
     r_out.w_sum += reservoirWeight;
+    r_out.c += r_current.c;
     reservoirStrategy = random(vec3(67.71, 31.91, 83.17), seed + 1.0);
     if (reservoirStrategy < reservoirWeight / r_out.w_sum) {
         r_out.p_hat = centerTargetFunctionAtCenter;
