@@ -22,10 +22,14 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
     vec3 colorMask = vec3(1.0);
     vec3 accumulatedColor = vec3(0.0);
 
-    float roulette = random(vec3(1.0), dot(gl_FragCoord.xy, vec2(12.9898, 78.233)) + uTime * 51.79);
-    int num_iters = int(ceil(log(1.0 - roulette) / log(0.9)));
+    float russian_roulette_prob = 1.0;
     float total_dist = 0.0;
-    for (int bounce = 0; bounce < 1; bounce++) {
+    for (int bounce = 0; bounce < 50; bounce++) {
+        float roulette = random(vec3(36.7539, 50.3658, 306.2759), dot(gl_FragCoord.xy, vec2(12.9898, 78.233)) + uTime * 17.13 + float(bounce) * 91.71);
+        if (roulette >= russian_roulette_prob) {
+            break;
+        }
+        colorMask /= russian_roulette_prob;
         Isect isect = intersect(ray, origin);
         if (isect.t == infinity) {
             break;
@@ -78,9 +82,9 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
         colorMask *= brdf * abs(ndotr) / pdfBSDF;
 
         // Russian Roulette Termination
-//        if (bounce > num_iters) {
-//            break;
-//        }
+        float throughput_max_element = max(max(colorMask.x, colorMask.y), colorMask.z);
+
+        russian_roulette_prob = min(throughput_max_element, 1.0);
 
         origin = nextOrigin;
         ray = nextRay;
@@ -92,9 +96,9 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
 void main() {
 
     // Avoid using 'texture' as a variable name
-    // vec3 texColor = texture(uTexture, gl_FragCoord.xy / uRes).rgb;
+    vec3 texColor = texture(uTexture, gl_FragCoord.xy / uRes).rgb;
 
-    // vec3 color = mix(calculateColor(uEye, initialRay, light), texColor, uTextureWeight);
-    vec3 color = calculateColor(uEye, initialRay, light);
+    vec3 color = mix(calculateColor(uEye, initialRay, light).rgb, texColor, uTextureWeight);
+    // vec3 color = calculateColor(uEye, initialRay, light);
     fragColor = vec4(color, 1.0);
 }

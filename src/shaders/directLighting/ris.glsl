@@ -1,7 +1,7 @@
 
 // begin_macro{DIRECT_LIGHT_RIS}
-ReSTIR_Reservoir sample_lights_ris(Isect isect, vec3 ray, int nb_bsdf, int nb_light, float seed) {
-    ReSTIR_Reservoir r = initializeReservoir();
+ReSTIR_Reservoir sample_lights_ris(ReSTIR_Reservoir r_in, Isect isect, vec3 ray, int nb_bsdf, int nb_light, float seed) {
+    ReSTIR_Reservoir r = r_in;
     int M = nb_bsdf + nb_light;
     vec3 nextOrigin = isect.position + isect.normal * epsilon;
     float baseSeed = hashValue(float(M) * 23.0 + 79.0) + seed;

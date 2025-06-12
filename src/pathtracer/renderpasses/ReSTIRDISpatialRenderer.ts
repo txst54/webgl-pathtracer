@@ -4,7 +4,7 @@ import {RenderPass} from "../../lib/webglutils/RenderPass";
 import {pathTracerVSText, ReSTIR_initialPassFSText, ReSTIR_spatialPassFSText} from "../Shaders";
 import {PathTracer} from "../App";
 
-export default class ReSTIRSpatialRenderer extends BaseRenderer {
+export default class ReSTIRDISpatialRenderer extends BaseRenderer {
     protected initialize(pathTracer: PathTracer): void {
         const type = this.gl.getExtension('OES_texture_float') ? this.gl.FLOAT : this.gl.UNSIGNED_BYTE;
         this.frameBuffer = this.gl.createFramebuffer();

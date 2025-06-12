@@ -4,7 +4,7 @@ import {RenderPass} from "../../lib/webglutils/RenderPass";
 import {pathTracerVSText, ReSTIR_spatialPassFSText, ReSTIR_temporalPassFSText} from "../Shaders";
 import {PathTracer} from "../App";
 
-export default class ReSTIRTemporalRenderer extends BaseRenderer {
+export default class ReSTIRGIRenderer extends BaseRenderer {
     private spatialTemporalConfig: TextureConfig;
     private pingpong: number = 0;
     private pathTracer: PathTracer;

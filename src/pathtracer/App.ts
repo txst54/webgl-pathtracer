@@ -6,15 +6,17 @@ import { Mat4, Vec4, Vec3 } from "../lib/TSM.js";
 import MISRenderer from "./renderpasses/MISRenderer";
 import { BaseRenderer } from "./renderpasses/BaseRenderer";
 import RISRenderer from "./renderpasses/RISRenderer";
-import ReSTIRSpatialRenderer from "./renderpasses/ReSTIRSpatialRenderer";
-import ReSTIRTemporalRenderer from "./renderpasses/ReSTIRTemporalRenderer";
+import ReSTIRDISpatialRenderer from "./renderpasses/ReSTIRDISpatialRenderer";
+import ReSTIRDIRenderer from "./renderpasses/ReSTIRDIRenderer";
+import ReSTIRGIRenderer from "./renderpasses/ReSTIRGIRenderer";
 
 // Rendering modes
 enum RenderMode {
   MIS = 0,
   RIS = 1,
   RESTIR_SPATIAL = 2,
-  RESTIR_TEMPORAL = 3
+  RESTIR_TEMPORAL = 3,
+  RESTIR_GI = 4
 }
 
 interface CameraRays {
@@ -25,7 +27,7 @@ interface CameraRays {
 }
 
 export class PathTracer extends CanvasAnimation {
-  private static readonly MODE_NAMES = ["MIS", "RIS", "ReSTIR Spatial Pass", "ReSTIR Temporal Pass"];
+  private static readonly MODE_NAMES = ["MIS", "RIS", "ReSTIR DI [Spatial Pass]", "ReSTIR DI", "ReSTIR GI"];
   private static readonly MOVEMENT_SPEED = 0.1;
 
   // Core components
@@ -90,8 +92,9 @@ export class PathTracer extends CanvasAnimation {
     this.renderers = {
       [RenderMode.MIS]: new MISRenderer(this.ctx, this.canvas2d, this),
       [RenderMode.RIS]: new RISRenderer(this.ctx, this.canvas2d, this),
-      [RenderMode.RESTIR_SPATIAL]: new ReSTIRSpatialRenderer(this.ctx, this.canvas2d, this),
-      [RenderMode.RESTIR_TEMPORAL]: new ReSTIRTemporalRenderer(this.ctx, this.canvas2d, this)
+      [RenderMode.RESTIR_SPATIAL]: new ReSTIRDISpatialRenderer(this.ctx, this.canvas2d, this),
+      [RenderMode.RESTIR_TEMPORAL]: new ReSTIRDIRenderer(this.ctx, this.canvas2d, this),
+      [RenderMode.RESTIR_GI]: new ReSTIRGIRenderer(this.ctx, this.canvas2d, this)
     };
   }
 
@@ -183,10 +186,6 @@ export class PathTracer extends CanvasAnimation {
 
   public getTextureWeight(): number {
     return this.sampleCount / (this.sampleCount + 1);
-  }
-
-  public jump(): void {
-    // TODO: If the player is not already in the lair, launch them upwards at 10 units/sec.
   }
 }
 

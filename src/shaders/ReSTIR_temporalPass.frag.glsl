@@ -44,7 +44,8 @@ void main() {
     float total_dist = 0.0;
 
     Isect isect = intersect(ray, origin);
-    ReSTIR_Reservoir r_current = sample_lights_ris(isect, ray, NB_BSDF, NB_LIGHT, seed);
+    ReSTIR_Reservoir r_in = initializeReservoir();
+    ReSTIR_Reservoir r_current = sample_lights_ris(r_in, isect, ray, NB_BSDF, NB_LIGHT, seed);
     ReSTIR_Reservoir r_out = initializeReservoir();
 
     vec4 pWorld = vec4(isect.position, 1.0);

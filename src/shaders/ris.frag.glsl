@@ -33,7 +33,13 @@ vec4 calculateColor(vec3 origin, vec3 ray, vec3 light) {
     float seed = hashCoords(gl_FragCoord.xy + timeEntropy * vec2(1.0, -1.0));
     float total_dist = 0.0;
 
+    float russian_roulette_prob = 1.0;
     for (int bounce = 0; bounce < 1; bounce++) {
+        float roulette = random(vec3(36.7539, 50.3658, 306.2759), dot(gl_FragCoord.xy, vec2(12.9898, 78.233)) + uTime * 17.13 + float(bounce) * 91.71);
+        if (roulette >= russian_roulette_prob) {
+            break;
+        }
+        colorMask /= russian_roulette_prob;
         Isect isect = intersect(ray, origin);
         if (isect.t == infinity) {
             break;
@@ -42,7 +48,8 @@ vec4 calculateColor(vec3 origin, vec3 ray, vec3 light) {
         vec3 nextOrigin = isect.position + isect.normal * epsilon;
         float baseSeed = hashValue(float(bounce) * 51.19 + 79.0) + seed;
 
-        ReSTIR_Reservoir r = sample_lights_ris(isect, ray, NB_BSDF, NB_LIGHT, baseSeed);
+        ReSTIR_Reservoir r = initializeReservoir();
+        r = sample_lights_ris(r, isect, ray, NB_BSDF, NB_LIGHT, baseSeed);
 
         if (isect.isLight && bounce == 0) {
             accumulatedColor += lightIntensity;
@@ -62,6 +69,11 @@ vec4 calculateColor(vec3 origin, vec3 ray, vec3 light) {
         if (ndotr <= 0.0 || pdfCosine <= epsilon) break;
         vec3 brdf = isect.albedo / pi;
         colorMask *= brdf * ndotr / pdfCosine;
+
+        // Russian Roulette Termination
+        float throughput_max_element = max(max(colorMask.x, colorMask.y), colorMask.z);
+
+        russian_roulette_prob = min(throughput_max_element, 1.0);
 
         origin = nextOrigin;
         ray = nextRay;

@@ -31,7 +31,7 @@ vec3 wallCubeMin = vec3(0.0, -10.0, -1.0);
 vec3 sphereCenter = vec3(-3.0, -7.0, -3.0);
 float sphereRadius = 3.0;
 vec3 light = vec3(6.0, 8.0, 6.0);
-float lightIntensity = 5.0;
+float lightIntensity = 2.0;
 float infinity = 10000.0;
 float epsilon = 0.00001;
 float lightSize = 0.2;
@@ -226,10 +226,14 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
     vec3 colorMask = vec3(1.0);
     vec3 accumulatedColor = vec3(0.0);
 
-    float roulette = random(vec3(1.0), dot(gl_FragCoord.xy, vec2(12.9898, 78.233)) + uTime * 51.79);
-    int num_iters = int(ceil(log(1.0 - roulette) / log(0.9)));
+    float russian_roulette_prob = 1.0;
     float total_dist = 0.0;
-    for (int bounce = 0; bounce < 1; bounce++) {
+    for (int bounce = 0; bounce < 50; bounce++) {
+        float roulette = random(vec3(36.7539, 50.3658, 306.2759), dot(gl_FragCoord.xy, vec2(12.9898, 78.233)) + uTime * 17.13 + float(bounce) * 91.71);
+        if (roulette >= russian_roulette_prob) {
+            break;
+        }
+        colorMask /= russian_roulette_prob;
         Isect isect = intersect(ray, origin);
         if (isect.t == infinity) {
             break;
@@ -282,9 +286,9 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
         colorMask *= brdf * abs(ndotr) / pdfBSDF;
 
         // Russian Roulette Termination
-//        if (bounce > num_iters) {
-//            break;
-//        }
+        float throughput_max_element = max(max(colorMask.x, colorMask.y), colorMask.z);
+
+        russian_roulette_prob = min(throughput_max_element, 1.0);
 
         origin = nextOrigin;
         ray = nextRay;
@@ -296,10 +300,10 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
 void main() {
 
     // Avoid using 'texture' as a variable name
-    // vec3 texColor = texture(uTexture, gl_FragCoord.xy / uRes).rgb;
+    vec3 texColor = texture(uTexture, gl_FragCoord.xy / uRes).rgb;
 
-    // vec3 color = mix(calculateColor(uEye, initialRay, light), texColor, uTextureWeight);
-    vec3 color = calculateColor(uEye, initialRay, light);
+    vec3 color = mix(calculateColor(uEye, initialRay, light).rgb, texColor, uTextureWeight);
+    // vec3 color = calculateColor(uEye, initialRay, light);
     fragColor = vec4(color, 1.0);
 }
 `;
@@ -321,7 +325,7 @@ vec3 wallCubeMin = vec3(0.0, -10.0, -1.0);
 vec3 sphereCenter = vec3(-3.0, -7.0, -3.0);
 float sphereRadius = 3.0;
 vec3 light = vec3(6.0, 8.0, 6.0);
-float lightIntensity = 5.0;
+float lightIntensity = 2.0;
 float infinity = 10000.0;
 float epsilon = 0.00001;
 float lightSize = 0.2;
@@ -537,7 +541,7 @@ vec3 wallCubeMin = vec3(0.0, -10.0, -1.0);
 vec3 sphereCenter = vec3(-3.0, -7.0, -3.0);
 float sphereRadius = 3.0;
 vec3 light = vec3(6.0, 8.0, 6.0);
-float lightIntensity = 5.0;
+float lightIntensity = 2.0;
 float infinity = 10000.0;
 float epsilon = 0.00001;
 float lightSize = 0.2;
@@ -768,8 +772,8 @@ vec4 packReservoir1(ReSTIR_Reservoir r) {
 vec4 packReservoir2(ReSTIR_Reservoir r) {
     return vec4(r.W_Y, r.w_sum, r.t, r.c); // zero pad unused values
 }
-ReSTIR_Reservoir sample_lights_ris(Isect isect, vec3 ray, int nb_bsdf, int nb_light, float seed) {
-    ReSTIR_Reservoir r = initializeReservoir();
+ReSTIR_Reservoir sample_lights_ris(ReSTIR_Reservoir r_in, Isect isect, vec3 ray, int nb_bsdf, int nb_light, float seed) {
+    ReSTIR_Reservoir r = r_in;
     int M = nb_bsdf + nb_light;
     vec3 nextOrigin = isect.position + isect.normal * epsilon;
     float baseSeed = hashValue(float(M) * 23.0 + 79.0) + seed;
@@ -836,7 +840,8 @@ ReSTIR_Reservoir resampleInitialRay(vec3 origin, vec3 ray, vec3 light) {
     float seed = hashValue(hashCoords(gl_FragCoord.xy + timeEntropy * vec2(1.0, -1.0)));
     float total_dist = 0.0;
     Isect isect = intersect(ray, origin);
-    return sample_lights_ris(isect, ray, NB_BSDF, NB_LIGHT, seed);
+    ReSTIR_Reservoir r = initializeReservoir();
+    return sample_lights_ris(r, isect, ray, NB_BSDF, NB_LIGHT, seed);
 }
 
 void main() {
@@ -868,7 +873,7 @@ vec3 wallCubeMin = vec3(0.0, -10.0, -1.0);
 vec3 sphereCenter = vec3(-3.0, -7.0, -3.0);
 float sphereRadius = 3.0;
 vec3 light = vec3(6.0, 8.0, 6.0);
-float lightIntensity = 5.0;
+float lightIntensity = 2.0;
 float infinity = 10000.0;
 float epsilon = 0.00001;
 float lightSize = 0.2;
@@ -1166,8 +1171,8 @@ ReSTIR_Reservoir sample_lights_restir_spatial(vec3 ray, float seed, Isect isectC
     }
     r.W_Y = r.w_sum / r.p_hat;
     return r;
-}ReSTIR_Reservoir sample_lights_ris(Isect isect, vec3 ray, int nb_bsdf, int nb_light, float seed) {
-    ReSTIR_Reservoir r = initializeReservoir();
+}ReSTIR_Reservoir sample_lights_ris(ReSTIR_Reservoir r_in, Isect isect, vec3 ray, int nb_bsdf, int nb_light, float seed) {
+    ReSTIR_Reservoir r = r_in;
     int M = nb_bsdf + nb_light;
     vec3 nextOrigin = isect.position + isect.normal * epsilon;
     float baseSeed = hashValue(float(M) * 23.0 + 79.0) + seed;
@@ -1237,8 +1242,14 @@ vec4 calculateColor(vec3 origin, vec3 ray, vec3 light) {
     float seed = hashCoords(gl_FragCoord.xy + timeEntropy * vec2(1.0, -1.0));
     float total_dist = 0.0;
     vec2 uv = gl_FragCoord.xy / uRes;
-
+    ReSTIR_Reservoir r = initializeReservoir();
+    float russian_roulette_prob = 1.0;
     for (int bounce = 0; bounce < 1; bounce++) {
+        float roulette = random(vec3(36.7539, 50.3658, 306.2759), dot(gl_FragCoord.xy, vec2(12.9898, 78.233)) + uTime * 17.13 + float(bounce) * 91.71);
+        if (roulette >= russian_roulette_prob) {
+            break;
+        }
+        colorMask /= russian_roulette_prob;
         Isect isect = intersect(ray, origin);
         if (isect.t == infinity) {
             break;
@@ -1247,13 +1258,13 @@ vec4 calculateColor(vec3 origin, vec3 ray, vec3 light) {
         vec3 nextOrigin = isect.position + isect.normal * epsilon;
         float baseSeed = hashValue(float(bounce) * 51.19 + 79.0) + seed;
 
-        ReSTIR_Reservoir r = initializeReservoir();
         if(bounce == 0) {
             r = sample_lights_restir_spatial(ray, baseSeed, isect);
             // return vec4(vec3(r.c), 1.0);
             r.c = min(512.0, r.c);
         } else {
-            r = sample_lights_ris(isect, ray, NB_BSDF, NB_LIGHT, baseSeed);
+            r = initializeReservoir();
+            r = sample_lights_ris(r, isect, ray, NB_BSDF, NB_LIGHT, baseSeed);
         }
 
         if (isect.isLight && bounce == 0) {
@@ -1275,6 +1286,10 @@ vec4 calculateColor(vec3 origin, vec3 ray, vec3 light) {
         vec3 brdf = isect.albedo / pi;
         colorMask *= brdf * ndotr / pdfCosine;
 
+        // Russian Roulette Termination
+        float throughput_max_element = max(max(colorMask.x, colorMask.y), colorMask.z);
+
+        russian_roulette_prob = min(throughput_max_element, 1.0);
         origin = nextOrigin;
         ray = nextRay;
     }
@@ -1320,7 +1335,7 @@ vec3 wallCubeMin = vec3(0.0, -10.0, -1.0);
 vec3 sphereCenter = vec3(-3.0, -7.0, -3.0);
 float sphereRadius = 3.0;
 vec3 light = vec3(6.0, 8.0, 6.0);
-float lightIntensity = 5.0;
+float lightIntensity = 2.0;
 float infinity = 10000.0;
 float epsilon = 0.00001;
 float lightSize = 0.2;
@@ -1618,8 +1633,8 @@ ReSTIR_Reservoir sample_lights_restir_spatial(vec3 ray, float seed, Isect isectC
     }
     r.W_Y = r.w_sum / r.p_hat;
     return r;
-}ReSTIR_Reservoir sample_lights_ris(Isect isect, vec3 ray, int nb_bsdf, int nb_light, float seed) {
-    ReSTIR_Reservoir r = initializeReservoir();
+}ReSTIR_Reservoir sample_lights_ris(ReSTIR_Reservoir r_in, Isect isect, vec3 ray, int nb_bsdf, int nb_light, float seed) {
+    ReSTIR_Reservoir r = r_in;
     int M = nb_bsdf + nb_light;
     vec3 nextOrigin = isect.position + isect.normal * epsilon;
     float baseSeed = hashValue(float(M) * 23.0 + 79.0) + seed;
@@ -1690,7 +1705,8 @@ void main() {
     float total_dist = 0.0;
 
     Isect isect = intersect(ray, origin);
-    ReSTIR_Reservoir r_current = sample_lights_ris(isect, ray, NB_BSDF, NB_LIGHT, seed);
+    ReSTIR_Reservoir r_in = initializeReservoir();
+    ReSTIR_Reservoir r_current = sample_lights_ris(r_in, isect, ray, NB_BSDF, NB_LIGHT, seed);
     ReSTIR_Reservoir r_out = initializeReservoir();
 
     vec4 pWorld = vec4(isect.position, 1.0);
@@ -1803,7 +1819,7 @@ vec3 wallCubeMin = vec3(0.0, -10.0, -1.0);
 vec3 sphereCenter = vec3(-3.0, -7.0, -3.0);
 float sphereRadius = 3.0;
 vec3 light = vec3(6.0, 8.0, 6.0);
-float lightIntensity = 5.0;
+float lightIntensity = 2.0;
 float infinity = 10000.0;
 float epsilon = 0.00001;
 float lightSize = 0.2;
@@ -2101,8 +2117,8 @@ ReSTIR_Reservoir sample_lights_restir_spatial(vec3 ray, float seed, Isect isectC
     }
     r.W_Y = r.w_sum / r.p_hat;
     return r;
-}ReSTIR_Reservoir sample_lights_ris(Isect isect, vec3 ray, int nb_bsdf, int nb_light, float seed) {
-    ReSTIR_Reservoir r = initializeReservoir();
+}ReSTIR_Reservoir sample_lights_ris(ReSTIR_Reservoir r_in, Isect isect, vec3 ray, int nb_bsdf, int nb_light, float seed) {
+    ReSTIR_Reservoir r = r_in;
     int M = nb_bsdf + nb_light;
     vec3 nextOrigin = isect.position + isect.normal * epsilon;
     float baseSeed = hashValue(float(M) * 23.0 + 79.0) + seed;
@@ -2244,7 +2260,7 @@ vec3 wallCubeMin = vec3(0.0, -10.0, -1.0);
 vec3 sphereCenter = vec3(-3.0, -7.0, -3.0);
 float sphereRadius = 3.0;
 vec3 light = vec3(6.0, 8.0, 6.0);
-float lightIntensity = 5.0;
+float lightIntensity = 2.0;
 float infinity = 10000.0;
 float epsilon = 0.00001;
 float lightSize = 0.2;
@@ -2475,8 +2491,8 @@ vec4 packReservoir1(ReSTIR_Reservoir r) {
 vec4 packReservoir2(ReSTIR_Reservoir r) {
     return vec4(r.W_Y, r.w_sum, r.t, r.c); // zero pad unused values
 }
-ReSTIR_Reservoir sample_lights_ris(Isect isect, vec3 ray, int nb_bsdf, int nb_light, float seed) {
-    ReSTIR_Reservoir r = initializeReservoir();
+ReSTIR_Reservoir sample_lights_ris(ReSTIR_Reservoir r_in, Isect isect, vec3 ray, int nb_bsdf, int nb_light, float seed) {
+    ReSTIR_Reservoir r = r_in;
     int M = nb_bsdf + nb_light;
     vec3 nextOrigin = isect.position + isect.normal * epsilon;
     float baseSeed = hashValue(float(M) * 23.0 + 79.0) + seed;
@@ -2548,7 +2564,13 @@ vec4 calculateColor(vec3 origin, vec3 ray, vec3 light) {
     float seed = hashCoords(gl_FragCoord.xy + timeEntropy * vec2(1.0, -1.0));
     float total_dist = 0.0;
 
+    float russian_roulette_prob = 1.0;
     for (int bounce = 0; bounce < 1; bounce++) {
+        float roulette = random(vec3(36.7539, 50.3658, 306.2759), dot(gl_FragCoord.xy, vec2(12.9898, 78.233)) + uTime * 17.13 + float(bounce) * 91.71);
+        if (roulette >= russian_roulette_prob) {
+            break;
+        }
+        colorMask /= russian_roulette_prob;
         Isect isect = intersect(ray, origin);
         if (isect.t == infinity) {
             break;
@@ -2557,7 +2579,8 @@ vec4 calculateColor(vec3 origin, vec3 ray, vec3 light) {
         vec3 nextOrigin = isect.position + isect.normal * epsilon;
         float baseSeed = hashValue(float(bounce) * 51.19 + 79.0) + seed;
 
-        ReSTIR_Reservoir r = sample_lights_ris(isect, ray, NB_BSDF, NB_LIGHT, baseSeed);
+        ReSTIR_Reservoir r = initializeReservoir();
+        r = sample_lights_ris(r, isect, ray, NB_BSDF, NB_LIGHT, baseSeed);
 
         if (isect.isLight && bounce == 0) {
             accumulatedColor += lightIntensity;
@@ -2577,6 +2600,11 @@ vec4 calculateColor(vec3 origin, vec3 ray, vec3 light) {
         if (ndotr <= 0.0 || pdfCosine <= epsilon) break;
         vec3 brdf = isect.albedo / pi;
         colorMask *= brdf * ndotr / pdfCosine;
+
+        // Russian Roulette Termination
+        float throughput_max_element = max(max(colorMask.x, colorMask.y), colorMask.z);
+
+        russian_roulette_prob = min(throughput_max_element, 1.0);
 
         origin = nextOrigin;
         ray = nextRay;
@@ -2613,7 +2641,7 @@ vec3 wallCubeMin = vec3(0.0, -10.0, -1.0);
 vec3 sphereCenter = vec3(-3.0, -7.0, -3.0);
 float sphereRadius = 3.0;
 vec3 light = vec3(6.0, 8.0, 6.0);
-float lightIntensity = 5.0;
+float lightIntensity = 2.0;
 float infinity = 10000.0;
 float epsilon = 0.00001;
 float lightSize = 0.2;

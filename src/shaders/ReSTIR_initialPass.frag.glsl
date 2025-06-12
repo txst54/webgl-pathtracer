@@ -27,7 +27,8 @@ ReSTIR_Reservoir resampleInitialRay(vec3 origin, vec3 ray, vec3 light) {
     float seed = hashValue(hashCoords(gl_FragCoord.xy + timeEntropy * vec2(1.0, -1.0)));
     float total_dist = 0.0;
     Isect isect = intersect(ray, origin);
-    return sample_lights_ris(isect, ray, NB_BSDF, NB_LIGHT, seed);
+    ReSTIR_Reservoir r = initializeReservoir();
+    return sample_lights_ris(r, isect, ray, NB_BSDF, NB_LIGHT, seed);
 }
 
 void main() {
