@@ -20,7 +20,7 @@ uniform sampler2D uReservoirData2;
 // use_macro{RAY_LIB}
 // use_macro{RIS_UTIL}
 // use_macro{RESTIR_RESERVOIR_LIB}
-// use_macro{DIRECT_LIGHT_RESTIR}
+// use_macro{RESTIRDI_SPATIAL_RESAMPLING_LIB}
 // use_macro{DIRECT_LIGHT_RIS}
 
 vec4 calculateColor(vec3 origin, vec3 ray, vec3 light) {
@@ -30,7 +30,6 @@ vec4 calculateColor(vec3 origin, vec3 ray, vec3 light) {
 
     float timeEntropy = hashValue(uTime);
     float seed = hashCoords(gl_FragCoord.xy + timeEntropy * vec2(1.0, -1.0));
-    float total_dist = 0.0;
     vec2 uv = gl_FragCoord.xy / uRes;
     ReSTIR_Reservoir r = initializeReservoir();
     float russian_roulette_prob = 1.0;
@@ -40,6 +39,7 @@ vec4 calculateColor(vec3 origin, vec3 ray, vec3 light) {
             break;
         }
         colorMask /= russian_roulette_prob;
+
         Isect isect = intersect(ray, origin);
         if (isect.t == infinity) {
             break;
@@ -78,7 +78,6 @@ vec4 calculateColor(vec3 origin, vec3 ray, vec3 light) {
 
         // Russian Roulette Termination
         float throughput_max_element = max(max(colorMask.x, colorMask.y), colorMask.z);
-
         russian_roulette_prob = min(throughput_max_element, 1.0);
         origin = nextOrigin;
         ray = nextRay;

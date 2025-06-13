@@ -1,4 +1,3 @@
-
 // begin_macro{DIRECT_LIGHT_RIS}
 ReSTIR_Reservoir sample_lights_ris(ReSTIR_Reservoir r_in, Isect isect, vec3 ray, int nb_bsdf, int nb_light, float seed) {
     ReSTIR_Reservoir r = r_in;

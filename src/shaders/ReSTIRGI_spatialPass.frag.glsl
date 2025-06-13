@@ -20,7 +20,7 @@ uniform sampler2D uReservoirData2;
 // use_macro{RAY_LIB}
 // use_macro{RIS_UTIL}
 // use_macro{RESTIR_RESERVOIR_LIB}
-// use_macro{DIRECT_LIGHT_RESTIR}
+// use_macro{RESTIRDI_SPATIAL_RESAMPLING_LIB}
 // use_macro{DIRECT_LIGHT_RIS}
 
 vec4 calculateColor(vec3 origin, vec3 ray, vec3 light) {

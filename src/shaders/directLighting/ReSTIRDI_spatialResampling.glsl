@@ -1,4 +1,4 @@
-//begin_macro{DIRECT_LIGHT_RESTIR}
+//begin_macro{RESTIRDI_SPATIAL_RESAMPLING_LIB}
 
 ReSTIR_Reservoir sample_lights_restir_spatial(vec3 ray, float seed, Isect isectCenter) {
     vec2 uv = gl_FragCoord.xy / uRes;
@@ -25,23 +25,13 @@ ReSTIR_Reservoir sample_lights_restir_spatial(vec3 ray, float seed, Isect isectC
         vec2 percent = (neighbor / uRes);
         vec3 candidateRay = normalize(mix(mix(uRay00, uRay01, percent.y), mix(uRay10, uRay11, percent.y), percent.x));
         Isect candidateIsect = intersect(candidateRay, uEye);
-        if (candidateIndex == 0) {
-            r.c = candidates[count].p_hat <= epsilon || dot(candidateIsect.normal, isectCenter.normal) < 0.95 || abs(candidateIsect.t - isectCenter.t) / isectCenter.t > 0.3 ? 1.0 : 0.0;
-        }
+
         if (
             dot(candidateIsect.normal, isectCenter.normal) < 0.95 ||
-            abs(candidateIsect.t - isectCenter.t) / isectCenter.t > 0.3 || abs(candidateIsect.t - isectCenter.t) / isectCenter.t < 0.1)
+            abs(candidateIsect.t - isectCenter.t) / isectCenter.t > 0.3 ||
+            abs(candidateIsect.t - isectCenter.t) / isectCenter.t < 0.1)
         continue;
-        // geometry selection heuristic
-//        vec2 percent = (neighbor / uRes);
-//        vec3 candidateRay = normalize(mix(mix(uRay00, uRay01, percent.y), mix(uRay10, uRay11, percent.y), percent.x));
-//        Isect candidateIsect = intersect(candidateRay, uEye);
-//        if (abs(candidateIsect.t - isectCenter.t) > 0.5 * isectCenter.t ||
-//            dot(candidateIsect.normal, isectCenter.normal) < 0.8 ||
-//            candidates[count].p_hat <= epsilon) continue;
 
-//        Isect candidateLightIsect = intersect(normalize(candidates[count].Y - isectCenter.position), isectCenter.position);
-//        if (!candidateLightIsect.isLight) continue;
         // generate X_i
         sum_p_hat += candidates[count].p_hat;
         r.c += candidates[count].c;

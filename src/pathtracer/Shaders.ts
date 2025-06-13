@@ -799,23 +799,13 @@ ReSTIR_Reservoir sample_lights_restir_spatial(vec3 ray, float seed, Isect isectC
         vec2 percent = (neighbor / uRes);
         vec3 candidateRay = normalize(mix(mix(uRay00, uRay01, percent.y), mix(uRay10, uRay11, percent.y), percent.x));
         Isect candidateIsect = intersect(candidateRay, uEye);
-        if (candidateIndex == 0) {
-            r.c = candidates[count].p_hat <= epsilon || dot(candidateIsect.normal, isectCenter.normal) < 0.95 || abs(candidateIsect.t - isectCenter.t) / isectCenter.t > 0.3 ? 1.0 : 0.0;
-        }
+
         if (
             dot(candidateIsect.normal, isectCenter.normal) < 0.95 ||
-            abs(candidateIsect.t - isectCenter.t) / isectCenter.t > 0.3 || abs(candidateIsect.t - isectCenter.t) / isectCenter.t < 0.1)
+            abs(candidateIsect.t - isectCenter.t) / isectCenter.t > 0.3 ||
+            abs(candidateIsect.t - isectCenter.t) / isectCenter.t < 0.1)
         continue;
-        // geometry selection heuristic
-//        vec2 percent = (neighbor / uRes);
-//        vec3 candidateRay = normalize(mix(mix(uRay00, uRay01, percent.y), mix(uRay10, uRay11, percent.y), percent.x));
-//        Isect candidateIsect = intersect(candidateRay, uEye);
-//        if (abs(candidateIsect.t - isectCenter.t) > 0.5 * isectCenter.t ||
-//            dot(candidateIsect.normal, isectCenter.normal) < 0.8 ||
-//            candidates[count].p_hat <= epsilon) continue;
 
-//        Isect candidateLightIsect = intersect(normalize(candidates[count].Y - isectCenter.position), isectCenter.position);
-//        if (!candidateLightIsect.isLight) continue;
         // generate X_i
         sum_p_hat += candidates[count].p_hat;
         r.c += candidates[count].c;
@@ -984,20 +974,19 @@ uniform mat4 uProjMatPrev;
 in vec3 initialRay;
 
 // previous state data
-uniform sampler2D uReservoirData1;
-uniform sampler2D uReservoirData2;
+uniform sampler2D uDirectReservoirData1;
+uniform sampler2D uDirectReservoirData2;
+uniform sampler2D uIndirectReservoirData1;
+uniform sampler2D uIndirectReservoirData2;
 
-layout(location = 0) out vec4 out_ReservoirData1;
-layout(location = 1) out vec4 out_ReservoirData2;
+layout(location = 0) out vec4 out_DirectReservoirData1;
+layout(location = 1) out vec4 out_DirectReservoirData2;
+layout(location = 3) out vec4 out_IndirectReservoirData1;
+layout(location = 4) out vec4 out_IndirectReservoirData2;
 layout(location = 2) out vec4 fragColor;
 
-#define M1 5       // num of bsdf sampled candidates
-#define M2 5       // num of light candidates
-#define PI 3.14159265359
 #define NB_BSDF 1
-#define NB_LIGHT 1
-
-// Assuming the macro expansions from your original shadervec3 roomCubeMin = vec3(-10.0, -10.0, -10.0);
+#define NB_LIGHT 1vec3 roomCubeMin = vec3(-10.0, -10.0, -10.0);
 vec3 roomCubeMax = vec3(10.0, 10.0, 10.0);
 vec3 wallCubeMax = vec3(10.0, 5.0, 1.0);
 vec3 wallCubeMin = vec3(0.0, -10.0, -1.0);
@@ -1235,73 +1224,62 @@ float balanceHeuristic(float pdf_a, float nb_pdf_a, float pdf_b, float nb_pdf_b)
     float ndotr = dot(isect.normal, sample_direction);
     vec3 contribution = brdf * abs(ndotr) * visibility;
     return dot(contribution, vec3(0.3086, 0.6094, 0.0820));
-}
-ReSTIR_Reservoir sample_lights_restir_spatial(vec3 ray, float seed, Isect isectCenter) {
-    vec2 uv = gl_FragCoord.xy / uRes;
-    ReSTIR_Reservoir rCenter = unpackReservoir(texture(uReservoirData1, uv), texture(uReservoirData2, uv));
+}ReSTIR_Reservoir getTemporalNeighbor(Isect isectCenter, sampler2D reservoirData1, sampler2D reservoirData2) {
     ReSTIR_Reservoir r = initializeReservoir();
-    int MAX_NEIGHBORS = 16;
-    ReSTIR_Reservoir candidates[17];
-    candidates[0] = rCenter;
-    int count = 1;
-    float sum_p_hat = rCenter.p_hat;
-    vec3 centerBrdf = isectCenter.albedo / pi;
-    for (int candidateIndex = 0; candidateIndex < MAX_NEIGHBORS; candidateIndex++) {
-        vec2 dxy = uniformlyRandomDisk(hashValue(seed + float(candidateIndex)), 8);
-        vec2 neighbor = gl_FragCoord.xy + vec2(int(dxy.x), int(dxy.y));
-        if (neighbor.x < 0.0 || neighbor.y < 0.0 ||
-        neighbor.x >= uRes.x || neighbor.y >= uRes.y) continue;
-
-        vec2 uv = (neighbor) / uRes;
-
-        vec4 uCandidate1 = texture(uReservoirData1, uv);
-        vec4 uCandidate2 = texture(uReservoirData2, uv);
-
-        candidates[count] = unpackReservoir(uCandidate1, uCandidate2);
-        vec2 percent = (neighbor / uRes);
-        vec3 candidateRay = normalize(mix(mix(uRay00, uRay01, percent.y), mix(uRay10, uRay11, percent.y), percent.x));
-        Isect candidateIsect = intersect(candidateRay, uEye);
-        if (candidateIndex == 0) {
-            r.c = candidates[count].p_hat <= epsilon || dot(candidateIsect.normal, isectCenter.normal) < 0.95 || abs(candidateIsect.t - isectCenter.t) / isectCenter.t > 0.3 ? 1.0 : 0.0;
-        }
-        if (
-            dot(candidateIsect.normal, isectCenter.normal) < 0.95 ||
-            abs(candidateIsect.t - isectCenter.t) / isectCenter.t > 0.3 || abs(candidateIsect.t - isectCenter.t) / isectCenter.t < 0.1)
-        continue;
-        // geometry selection heuristic
-//        vec2 percent = (neighbor / uRes);
-//        vec3 candidateRay = normalize(mix(mix(uRay00, uRay01, percent.y), mix(uRay10, uRay11, percent.y), percent.x));
-//        Isect candidateIsect = intersect(candidateRay, uEye);
-//        if (abs(candidateIsect.t - isectCenter.t) > 0.5 * isectCenter.t ||
-//            dot(candidateIsect.normal, isectCenter.normal) < 0.8 ||
-//            candidates[count].p_hat <= epsilon) continue;
-
-//        Isect candidateLightIsect = intersect(normalize(candidates[count].Y - isectCenter.position), isectCenter.position);
-//        if (!candidateLightIsect.isLight) continue;
-        // generate X_i
-        sum_p_hat += candidates[count].p_hat;
-        r.c += candidates[count].c;
-        count++;
-    }
-    if (sum_p_hat <= epsilon) return r;
-    for (int i = 0; i < MAX_NEIGHBORS + 1; i++) {
-        if (i >= count) break;
-        ReSTIR_Reservoir r_i = candidates[i];
-        float m_i = r_i.p_hat/sum_p_hat;
-        float p_hat_at_center = evaluate_target_function_at_center(r_i.Y, isectCenter, centerBrdf);
-        float w_i = m_i * p_hat_at_center * r_i.W_Y;
-        float randint = random(vec3(71.31, 67.73, 91.83), hashValue(seed + float(i)));
-        r.w_sum += w_i;
-        if (randint < w_i / r.w_sum) {
-            r.Y = r_i.Y;
-            r.p_hat = p_hat_at_center;
-        }
-    }
-    if (r.w_sum == 0.0 || r.p_hat <= epsilon) {
+    vec4 pWorld = vec4(isectCenter.position, 1.0);
+    vec4 clip_prev = uProjMatPrev * uViewMatPrev * pWorld;
+    if (clip_prev.w < epsilon) {
         return r;
     }
-    r.W_Y = r.w_sum / r.p_hat;
-    return r;
+    vec3 ndc_prev = clip_prev.xyz / clip_prev.w;
+    vec2 uv_prev = ndc_prev.xy * 0.5 + 0.5;
+    if (uv_prev.x < 0.0 || uv_prev.x >= 1.0 || uv_prev.y < 0.0 || uv_prev.y >= 1.0) {
+        return r;
+    }
+
+    // fetch temporal neighbor
+    vec4 uReservoirData1Vec = texture(reservoirData1, uv_prev);
+    vec4 uReservoirData2Vec = texture(reservoirData2, uv_prev);
+    ReSTIR_Reservoir r_prev = unpackReservoir(uReservoirData1Vec, uReservoirData2Vec);
+
+    if (r_prev.W_Y < epsilon) {
+        return r;
+    }
+
+    return r_prev;
+}
+
+ReSTIR_Reservoir resample_temporal(ReSTIR_Reservoir r_current, ReSTIR_Reservoir r_prev, Isect isectCenter, float seed) {
+    ReSTIR_Reservoir r_out = initializeReservoir();
+    float misWeight;
+    float reservoirWeight;
+    float reservoirStrategy;
+    vec3 centerBrdf = isectCenter.albedo / pi;
+    float neighborTargetFunctionAtCenter = evaluate_target_function_at_center(r_prev.Y, isectCenter, centerBrdf);
+    float centerTargetFunctionAtCenter = r_current.p_hat;
+
+    ReSTIR_Reservoir[2] reservoirs = ReSTIR_Reservoir[2](r_prev, r_current);
+    float[2] targetFunctions = float[2](neighborTargetFunctionAtCenter, centerTargetFunctionAtCenter);
+
+    for (int i = 0; i < 2; i++) {
+        if (targetFunctions[i] < epsilon) {
+            continue;
+        }
+        // resample initial candidates
+        misWeight = reservoirs[i].c * targetFunctions[i] / (r_prev.c * neighborTargetFunctionAtCenter + r_current.c * centerTargetFunctionAtCenter);
+        reservoirWeight = misWeight * targetFunctions[i] * reservoirs[i].W_Y;
+        r_out.w_sum += reservoirWeight;
+        r_out.c += reservoirs[i].c;
+        reservoirStrategy = random(vec3(67.71, 31.91, 83.17), seed + float(i));
+        if (reservoirStrategy < reservoirWeight / r_out.w_sum) {
+            r_out.p_hat = targetFunctions[i];
+            r_out.Y = reservoirs[i].Y;
+            r_out.t = reservoirs[i].t;
+        }
+    }
+
+    r_out.W_Y = r_out.w_sum / r_out.p_hat;
+    return r_out;
 }ReSTIR_Reservoir sample_lights_ris(ReSTIR_Reservoir r_in, Isect isect, vec3 ray, int nb_bsdf, int nb_light, float seed) {
     ReSTIR_Reservoir r = r_in;
     int M = nb_bsdf + nb_light;
@@ -1362,105 +1340,46 @@ ReSTIR_Reservoir sample_lights_restir_spatial(vec3 ray, float seed, Isect isectC
     }
     r.c = 1.0;
     return r;
+}
+ReSTIR_Reservoir getTemporalNeighborDI(Isect isectCenter, ReSTIR_Reservoir r_current, sampler2D reservoirData1, sampler2D reservoirData2) {
+    ReSTIR_Reservoir temporalNeighbor = getTemporalNeighbor(isectCenter, reservoirData1, reservoirData2);
+    ReSTIR_Reservoir defaultReservoir = initializeReservoir();
+    if (temporalNeighbor.W_Y < epsilon) {
+        return defaultReservoir;
+    }
+    vec3 lightDir = normalize(temporalNeighbor.Y - isectCenter.position);
+    vec3 rayOrigin = isectCenter.position + isectCenter.normal * epsilon;
+    Isect visibilityCheck = intersect(lightDir, rayOrigin);
+
+    // If we dont hit the light there is occlusion
+    if (!visibilityCheck.isLight || abs(r_current.t - temporalNeighbor.t) > 0.1 * r_current.t) {
+        return defaultReservoir;
+    }
+    return temporalNeighbor;
+}
+
+ReSTIR_Reservoir sampleLightsTemporalDI(vec3 ray, float seed, Isect isectCenter, sampler2D reservoirData1, sampler2D reservoirData2) {
+    ReSTIR_Reservoir r_in = initializeReservoir();
+    ReSTIR_Reservoir r_current = sample_lights_ris(r_in, isectCenter, ray, NB_BSDF, NB_LIGHT, seed);
+    ReSTIR_Reservoir r_prev = getTemporalNeighborDI(isectCenter, r_current, reservoirData1, reservoirData2);
+
+    if (r_prev.W_Y < epsilon) {
+        return r_current;
+    }
+
+    ReSTIR_Reservoir r_out = resample_temporal(r_current, r_prev, isectCenter, seed);
+    return r_out;
 }
 
 void main() {
     vec3 ray = normalize(initialRay);
-    vec3 origin = uEye;
-    fragColor = vec4(0.0);
-
     float timeEntropy = hashValue(uTime);
     float seed = hashCoords(gl_FragCoord.xy + timeEntropy * vec2(1.0, -1.0));
-    float total_dist = 0.0;
 
-    Isect isect = intersect(ray, origin);
-    ReSTIR_Reservoir r_in = initializeReservoir();
-    ReSTIR_Reservoir r_current = sample_lights_ris(r_in, isect, ray, NB_BSDF, NB_LIGHT, seed);
-    ReSTIR_Reservoir r_out = initializeReservoir();
-
-    vec4 pWorld = vec4(isect.position, 1.0);
-    vec4 clip_prev = uProjMatPrev * uViewMatPrev * pWorld;
-    if (clip_prev.w < epsilon) {
-        out_ReservoirData1 = packReservoir1(r_current);
-        out_ReservoirData2 = packReservoir2(r_current);
-        fragColor = vec4(vec3(0.5), 1.0);
-        return;
-    }
-    vec3 ndc_prev = clip_prev.xyz / clip_prev.w;
-    vec2 uv_prev = ndc_prev.xy * 0.5 + 0.5;
-    if (uv_prev.x < 0.0 || uv_prev.x >= 1.0 || uv_prev.y < 0.0 || uv_prev.y >= 1.0) {
-        out_ReservoirData1 = packReservoir1(r_current);
-        out_ReservoirData2 = packReservoir2(r_current);
-        fragColor = vec4(1.0, 1.0, 1.0, 1.0);
-        return;
-     }
-
-    // fetch temporal neighbor
-    vec4 uReservoirData1Vec = texture(uReservoirData1, uv_prev);
-    vec4 uReservoirData2Vec = texture(uReservoirData2, uv_prev);
-    ReSTIR_Reservoir r_prev = unpackReservoir(uReservoirData1Vec, uReservoirData2Vec);
-
-    if (r_prev.W_Y < epsilon) {
-        out_ReservoirData1 = packReservoir1(r_current);
-        out_ReservoirData2 = packReservoir2(r_current);
-        fragColor = vec4(0.5, 0.0, 0.0, 1.0); // maroon
-        return;
-    }
-
-    vec3 lightDir = normalize(r_prev.Y - isect.position);
-    float lightDistance = length(r_prev.Y - isect.position);
-
-    vec3 rayOrigin = isect.position + isect.normal * epsilon;
-    Isect visibilityCheck = intersect(lightDir, rayOrigin);
-
-    // If we dont hit the light there is occlusion
-    if (!visibilityCheck.isLight || abs(r_current.t - r_prev.t) > 0.1 * r_current.t) {
-        out_ReservoirData1 = packReservoir1(r_current);
-        out_ReservoirData2 = packReservoir2(r_current);
-        float diff = abs(r_current.t - r_prev.t) / r_current.t * 10.0;
-        fragColor = vec4(0.0, 0.0, 1.0, 1.0); // blue
-        return;
-    }
-
-    float misWeight;
-    float reservoirWeight;
-    float reservoirStrategy;
-    vec3 centerBrdf = isect.albedo / pi;
-    float neighborTargetFunctionAtCenter = evaluate_target_function_at_center(r_prev.Y, isect, centerBrdf);
-    float centerTargetFunctionAtCenter = r_current.p_hat;
-
-    // resample temporal neighbor
-    misWeight = r_prev.c * neighborTargetFunctionAtCenter / (r_prev.c * neighborTargetFunctionAtCenter + r_current.c * centerTargetFunctionAtCenter);
-    reservoirWeight = misWeight * neighborTargetFunctionAtCenter * r_prev.W_Y;
-    r_out.w_sum += reservoirWeight;
-    r_out.c += r_prev.c;
-    reservoirStrategy = random(vec3(67.71, 31.91, 83.17), seed);
-    if (reservoirStrategy < reservoirWeight / r_out.w_sum) {
-        r_out.p_hat = neighborTargetFunctionAtCenter;
-        r_out.Y = r_prev.Y;
-        r_out.t = r_prev.t;
-        fragColor = vec4(1.0, 0.0, 0.0, 1.0); // red temporal
-    }
-
-    // resample initial candidates
-    misWeight = r_current.c * centerTargetFunctionAtCenter / (r_prev.c * neighborTargetFunctionAtCenter + r_current.c * centerTargetFunctionAtCenter);
-    reservoirWeight = misWeight * centerTargetFunctionAtCenter * r_current.W_Y;
-    r_out.w_sum += reservoirWeight;
-    r_out.c += r_current.c;
-    reservoirStrategy = random(vec3(67.71, 31.91, 83.17), seed + 1.0);
-    if (reservoirStrategy < reservoirWeight / r_out.w_sum) {
-        r_out.p_hat = centerTargetFunctionAtCenter;
-        r_out.Y = r_current.Y;
-        r_out.t = r_current.t;
-        fragColor = vec4(0.0, 1.0, 0.0, 1.0); // current
-    }
-
-    r_out.W_Y = r_out.w_sum / r_out.p_hat;
-    out_ReservoirData1 = packReservoir1(r_out);
-    out_ReservoirData2 = packReservoir2(r_out);
-    if (fragColor == vec4(0.0)) {
-        fragColor = vec4(0.0, 1.0, 0.0, 1.0);
-    }
+    Isect isect = intersect(ray, uEye);
+    ReSTIR_Reservoir r = sampleLightsTemporalDI(ray, seed, isect, uDirectReservoirData1, uDirectReservoirData2);
+    out_ReservoirData1 = packReservoir1(r);
+    out_ReservoirData2 = packReservoir2(r);
 }
 
 `;
@@ -2073,23 +1992,13 @@ ReSTIR_Reservoir sample_lights_restir_spatial(vec3 ray, float seed, Isect isectC
         vec2 percent = (neighbor / uRes);
         vec3 candidateRay = normalize(mix(mix(uRay00, uRay01, percent.y), mix(uRay10, uRay11, percent.y), percent.x));
         Isect candidateIsect = intersect(candidateRay, uEye);
-        if (candidateIndex == 0) {
-            r.c = candidates[count].p_hat <= epsilon || dot(candidateIsect.normal, isectCenter.normal) < 0.95 || abs(candidateIsect.t - isectCenter.t) / isectCenter.t > 0.3 ? 1.0 : 0.0;
-        }
+
         if (
             dot(candidateIsect.normal, isectCenter.normal) < 0.95 ||
-            abs(candidateIsect.t - isectCenter.t) / isectCenter.t > 0.3 || abs(candidateIsect.t - isectCenter.t) / isectCenter.t < 0.1)
+            abs(candidateIsect.t - isectCenter.t) / isectCenter.t > 0.3 ||
+            abs(candidateIsect.t - isectCenter.t) / isectCenter.t < 0.1)
         continue;
-        // geometry selection heuristic
-//        vec2 percent = (neighbor / uRes);
-//        vec3 candidateRay = normalize(mix(mix(uRay00, uRay01, percent.y), mix(uRay10, uRay11, percent.y), percent.x));
-//        Isect candidateIsect = intersect(candidateRay, uEye);
-//        if (abs(candidateIsect.t - isectCenter.t) > 0.5 * isectCenter.t ||
-//            dot(candidateIsect.normal, isectCenter.normal) < 0.8 ||
-//            candidates[count].p_hat <= epsilon) continue;
 
-//        Isect candidateLightIsect = intersect(normalize(candidates[count].Y - isectCenter.position), isectCenter.position);
-//        if (!candidateLightIsect.isLight) continue;
         // generate X_i
         sum_p_hat += candidates[count].p_hat;
         r.c += candidates[count].c;
@@ -2183,7 +2092,6 @@ vec4 calculateColor(vec3 origin, vec3 ray, vec3 light) {
 
     float timeEntropy = hashValue(uTime);
     float seed = hashCoords(gl_FragCoord.xy + timeEntropy * vec2(1.0, -1.0));
-    float total_dist = 0.0;
     vec2 uv = gl_FragCoord.xy / uRes;
     ReSTIR_Reservoir r = initializeReservoir();
     float russian_roulette_prob = 1.0;
@@ -2193,6 +2101,7 @@ vec4 calculateColor(vec3 origin, vec3 ray, vec3 light) {
             break;
         }
         colorMask /= russian_roulette_prob;
+
         Isect isect = intersect(ray, origin);
         if (isect.t == infinity) {
             break;
@@ -2231,7 +2140,6 @@ vec4 calculateColor(vec3 origin, vec3 ray, vec3 light) {
 
         // Russian Roulette Termination
         float throughput_max_element = max(max(colorMask.x, colorMask.y), colorMask.z);
-
         russian_roulette_prob = min(throughput_max_element, 1.0);
         origin = nextOrigin;
         ray = nextRay;
@@ -2263,15 +2171,9 @@ uniform sampler2D uReservoirData2;
 
 layout(location = 0) out vec4 out_ReservoirData1;
 layout(location = 1) out vec4 out_ReservoirData2;
-layout(location = 2) out vec4 fragColor;
 
-#define M1 5       // num of bsdf sampled candidates
-#define M2 5       // num of light candidates
-#define PI 3.14159265359
 #define NB_BSDF 1
-#define NB_LIGHT 1
-
-// Assuming the macro expansions from your original shadervec3 roomCubeMin = vec3(-10.0, -10.0, -10.0);
+#define NB_LIGHT 1vec3 roomCubeMin = vec3(-10.0, -10.0, -10.0);
 vec3 roomCubeMax = vec3(10.0, 10.0, 10.0);
 vec3 wallCubeMax = vec3(10.0, 5.0, 1.0);
 vec3 wallCubeMin = vec3(0.0, -10.0, -1.0);
@@ -2509,73 +2411,62 @@ float balanceHeuristic(float pdf_a, float nb_pdf_a, float pdf_b, float nb_pdf_b)
     float ndotr = dot(isect.normal, sample_direction);
     vec3 contribution = brdf * abs(ndotr) * visibility;
     return dot(contribution, vec3(0.3086, 0.6094, 0.0820));
-}
-ReSTIR_Reservoir sample_lights_restir_spatial(vec3 ray, float seed, Isect isectCenter) {
-    vec2 uv = gl_FragCoord.xy / uRes;
-    ReSTIR_Reservoir rCenter = unpackReservoir(texture(uReservoirData1, uv), texture(uReservoirData2, uv));
+}ReSTIR_Reservoir getTemporalNeighbor(Isect isectCenter, sampler2D reservoirData1, sampler2D reservoirData2) {
     ReSTIR_Reservoir r = initializeReservoir();
-    int MAX_NEIGHBORS = 16;
-    ReSTIR_Reservoir candidates[17];
-    candidates[0] = rCenter;
-    int count = 1;
-    float sum_p_hat = rCenter.p_hat;
-    vec3 centerBrdf = isectCenter.albedo / pi;
-    for (int candidateIndex = 0; candidateIndex < MAX_NEIGHBORS; candidateIndex++) {
-        vec2 dxy = uniformlyRandomDisk(hashValue(seed + float(candidateIndex)), 8);
-        vec2 neighbor = gl_FragCoord.xy + vec2(int(dxy.x), int(dxy.y));
-        if (neighbor.x < 0.0 || neighbor.y < 0.0 ||
-        neighbor.x >= uRes.x || neighbor.y >= uRes.y) continue;
-
-        vec2 uv = (neighbor) / uRes;
-
-        vec4 uCandidate1 = texture(uReservoirData1, uv);
-        vec4 uCandidate2 = texture(uReservoirData2, uv);
-
-        candidates[count] = unpackReservoir(uCandidate1, uCandidate2);
-        vec2 percent = (neighbor / uRes);
-        vec3 candidateRay = normalize(mix(mix(uRay00, uRay01, percent.y), mix(uRay10, uRay11, percent.y), percent.x));
-        Isect candidateIsect = intersect(candidateRay, uEye);
-        if (candidateIndex == 0) {
-            r.c = candidates[count].p_hat <= epsilon || dot(candidateIsect.normal, isectCenter.normal) < 0.95 || abs(candidateIsect.t - isectCenter.t) / isectCenter.t > 0.3 ? 1.0 : 0.0;
-        }
-        if (
-            dot(candidateIsect.normal, isectCenter.normal) < 0.95 ||
-            abs(candidateIsect.t - isectCenter.t) / isectCenter.t > 0.3 || abs(candidateIsect.t - isectCenter.t) / isectCenter.t < 0.1)
-        continue;
-        // geometry selection heuristic
-//        vec2 percent = (neighbor / uRes);
-//        vec3 candidateRay = normalize(mix(mix(uRay00, uRay01, percent.y), mix(uRay10, uRay11, percent.y), percent.x));
-//        Isect candidateIsect = intersect(candidateRay, uEye);
-//        if (abs(candidateIsect.t - isectCenter.t) > 0.5 * isectCenter.t ||
-//            dot(candidateIsect.normal, isectCenter.normal) < 0.8 ||
-//            candidates[count].p_hat <= epsilon) continue;
-
-//        Isect candidateLightIsect = intersect(normalize(candidates[count].Y - isectCenter.position), isectCenter.position);
-//        if (!candidateLightIsect.isLight) continue;
-        // generate X_i
-        sum_p_hat += candidates[count].p_hat;
-        r.c += candidates[count].c;
-        count++;
-    }
-    if (sum_p_hat <= epsilon) return r;
-    for (int i = 0; i < MAX_NEIGHBORS + 1; i++) {
-        if (i >= count) break;
-        ReSTIR_Reservoir r_i = candidates[i];
-        float m_i = r_i.p_hat/sum_p_hat;
-        float p_hat_at_center = evaluate_target_function_at_center(r_i.Y, isectCenter, centerBrdf);
-        float w_i = m_i * p_hat_at_center * r_i.W_Y;
-        float randint = random(vec3(71.31, 67.73, 91.83), hashValue(seed + float(i)));
-        r.w_sum += w_i;
-        if (randint < w_i / r.w_sum) {
-            r.Y = r_i.Y;
-            r.p_hat = p_hat_at_center;
-        }
-    }
-    if (r.w_sum == 0.0 || r.p_hat <= epsilon) {
+    vec4 pWorld = vec4(isectCenter.position, 1.0);
+    vec4 clip_prev = uProjMatPrev * uViewMatPrev * pWorld;
+    if (clip_prev.w < epsilon) {
         return r;
     }
-    r.W_Y = r.w_sum / r.p_hat;
-    return r;
+    vec3 ndc_prev = clip_prev.xyz / clip_prev.w;
+    vec2 uv_prev = ndc_prev.xy * 0.5 + 0.5;
+    if (uv_prev.x < 0.0 || uv_prev.x >= 1.0 || uv_prev.y < 0.0 || uv_prev.y >= 1.0) {
+        return r;
+    }
+
+    // fetch temporal neighbor
+    vec4 uReservoirData1Vec = texture(reservoirData1, uv_prev);
+    vec4 uReservoirData2Vec = texture(reservoirData2, uv_prev);
+    ReSTIR_Reservoir r_prev = unpackReservoir(uReservoirData1Vec, uReservoirData2Vec);
+
+    if (r_prev.W_Y < epsilon) {
+        return r;
+    }
+
+    return r_prev;
+}
+
+ReSTIR_Reservoir resample_temporal(ReSTIR_Reservoir r_current, ReSTIR_Reservoir r_prev, Isect isectCenter, float seed) {
+    ReSTIR_Reservoir r_out = initializeReservoir();
+    float misWeight;
+    float reservoirWeight;
+    float reservoirStrategy;
+    vec3 centerBrdf = isectCenter.albedo / pi;
+    float neighborTargetFunctionAtCenter = evaluate_target_function_at_center(r_prev.Y, isectCenter, centerBrdf);
+    float centerTargetFunctionAtCenter = r_current.p_hat;
+
+    ReSTIR_Reservoir[2] reservoirs = ReSTIR_Reservoir[2](r_prev, r_current);
+    float[2] targetFunctions = float[2](neighborTargetFunctionAtCenter, centerTargetFunctionAtCenter);
+
+    for (int i = 0; i < 2; i++) {
+        if (targetFunctions[i] < epsilon) {
+            continue;
+        }
+        // resample initial candidates
+        misWeight = reservoirs[i].c * targetFunctions[i] / (r_prev.c * neighborTargetFunctionAtCenter + r_current.c * centerTargetFunctionAtCenter);
+        reservoirWeight = misWeight * targetFunctions[i] * reservoirs[i].W_Y;
+        r_out.w_sum += reservoirWeight;
+        r_out.c += reservoirs[i].c;
+        reservoirStrategy = random(vec3(67.71, 31.91, 83.17), seed + float(i));
+        if (reservoirStrategy < reservoirWeight / r_out.w_sum) {
+            r_out.p_hat = targetFunctions[i];
+            r_out.Y = reservoirs[i].Y;
+            r_out.t = reservoirs[i].t;
+        }
+    }
+
+    r_out.W_Y = r_out.w_sum / r_out.p_hat;
+    return r_out;
 }ReSTIR_Reservoir sample_lights_ris(ReSTIR_Reservoir r_in, Isect isect, vec3 ray, int nb_bsdf, int nb_light, float seed) {
     ReSTIR_Reservoir r = r_in;
     int M = nb_bsdf + nb_light;
@@ -2636,105 +2527,46 @@ ReSTIR_Reservoir sample_lights_restir_spatial(vec3 ray, float seed, Isect isectC
     }
     r.c = 1.0;
     return r;
+}
+ReSTIR_Reservoir getTemporalNeighborDI(Isect isectCenter, ReSTIR_Reservoir r_current, sampler2D reservoirData1, sampler2D reservoirData2) {
+    ReSTIR_Reservoir temporalNeighbor = getTemporalNeighbor(isectCenter, reservoirData1, reservoirData2);
+    ReSTIR_Reservoir defaultReservoir = initializeReservoir();
+    if (temporalNeighbor.W_Y < epsilon) {
+        return defaultReservoir;
+    }
+    vec3 lightDir = normalize(temporalNeighbor.Y - isectCenter.position);
+    vec3 rayOrigin = isectCenter.position + isectCenter.normal * epsilon;
+    Isect visibilityCheck = intersect(lightDir, rayOrigin);
+
+    // If we dont hit the light there is occlusion
+    if (!visibilityCheck.isLight || abs(r_current.t - temporalNeighbor.t) > 0.1 * r_current.t) {
+        return defaultReservoir;
+    }
+    return temporalNeighbor;
+}
+
+ReSTIR_Reservoir sampleLightsTemporalDI(vec3 ray, float seed, Isect isectCenter, sampler2D reservoirData1, sampler2D reservoirData2) {
+    ReSTIR_Reservoir r_in = initializeReservoir();
+    ReSTIR_Reservoir r_current = sample_lights_ris(r_in, isectCenter, ray, NB_BSDF, NB_LIGHT, seed);
+    ReSTIR_Reservoir r_prev = getTemporalNeighborDI(isectCenter, r_current, reservoirData1, reservoirData2);
+
+    if (r_prev.W_Y < epsilon) {
+        return r_current;
+    }
+
+    ReSTIR_Reservoir r_out = resample_temporal(r_current, r_prev, isectCenter, seed);
+    return r_out;
 }
 
 void main() {
     vec3 ray = normalize(initialRay);
-    vec3 origin = uEye;
-    fragColor = vec4(0.0);
-
     float timeEntropy = hashValue(uTime);
     float seed = hashCoords(gl_FragCoord.xy + timeEntropy * vec2(1.0, -1.0));
-    float total_dist = 0.0;
 
-    Isect isect = intersect(ray, origin);
-    ReSTIR_Reservoir r_in = initializeReservoir();
-    ReSTIR_Reservoir r_current = sample_lights_ris(r_in, isect, ray, NB_BSDF, NB_LIGHT, seed);
-    ReSTIR_Reservoir r_out = initializeReservoir();
-
-    vec4 pWorld = vec4(isect.position, 1.0);
-    vec4 clip_prev = uProjMatPrev * uViewMatPrev * pWorld;
-    if (clip_prev.w < epsilon) {
-        out_ReservoirData1 = packReservoir1(r_current);
-        out_ReservoirData2 = packReservoir2(r_current);
-        fragColor = vec4(vec3(0.5), 1.0);
-        return;
-    }
-    vec3 ndc_prev = clip_prev.xyz / clip_prev.w;
-    vec2 uv_prev = ndc_prev.xy * 0.5 + 0.5;
-    if (uv_prev.x < 0.0 || uv_prev.x >= 1.0 || uv_prev.y < 0.0 || uv_prev.y >= 1.0) {
-        out_ReservoirData1 = packReservoir1(r_current);
-        out_ReservoirData2 = packReservoir2(r_current);
-        fragColor = vec4(1.0, 1.0, 1.0, 1.0);
-        return;
-     }
-
-    // fetch temporal neighbor
-    vec4 uReservoirData1Vec = texture(uReservoirData1, uv_prev);
-    vec4 uReservoirData2Vec = texture(uReservoirData2, uv_prev);
-    ReSTIR_Reservoir r_prev = unpackReservoir(uReservoirData1Vec, uReservoirData2Vec);
-
-    if (r_prev.W_Y < epsilon) {
-        out_ReservoirData1 = packReservoir1(r_current);
-        out_ReservoirData2 = packReservoir2(r_current);
-        fragColor = vec4(0.5, 0.0, 0.0, 1.0); // maroon
-        return;
-    }
-
-    vec3 lightDir = normalize(r_prev.Y - isect.position);
-    float lightDistance = length(r_prev.Y - isect.position);
-
-    vec3 rayOrigin = isect.position + isect.normal * epsilon;
-    Isect visibilityCheck = intersect(lightDir, rayOrigin);
-
-    // If we dont hit the light there is occlusion
-    if (!visibilityCheck.isLight || abs(r_current.t - r_prev.t) > 0.1 * r_current.t) {
-        out_ReservoirData1 = packReservoir1(r_current);
-        out_ReservoirData2 = packReservoir2(r_current);
-        float diff = abs(r_current.t - r_prev.t) / r_current.t * 10.0;
-        fragColor = vec4(0.0, 0.0, 1.0, 1.0); // blue
-        return;
-    }
-
-    float misWeight;
-    float reservoirWeight;
-    float reservoirStrategy;
-    vec3 centerBrdf = isect.albedo / pi;
-    float neighborTargetFunctionAtCenter = evaluate_target_function_at_center(r_prev.Y, isect, centerBrdf);
-    float centerTargetFunctionAtCenter = r_current.p_hat;
-
-    // resample temporal neighbor
-    misWeight = r_prev.c * neighborTargetFunctionAtCenter / (r_prev.c * neighborTargetFunctionAtCenter + r_current.c * centerTargetFunctionAtCenter);
-    reservoirWeight = misWeight * neighborTargetFunctionAtCenter * r_prev.W_Y;
-    r_out.w_sum += reservoirWeight;
-    r_out.c += r_prev.c;
-    reservoirStrategy = random(vec3(67.71, 31.91, 83.17), seed);
-    if (reservoirStrategy < reservoirWeight / r_out.w_sum) {
-        r_out.p_hat = neighborTargetFunctionAtCenter;
-        r_out.Y = r_prev.Y;
-        r_out.t = r_prev.t;
-        fragColor = vec4(1.0, 0.0, 0.0, 1.0); // red temporal
-    }
-
-    // resample initial candidates
-    misWeight = r_current.c * centerTargetFunctionAtCenter / (r_prev.c * neighborTargetFunctionAtCenter + r_current.c * centerTargetFunctionAtCenter);
-    reservoirWeight = misWeight * centerTargetFunctionAtCenter * r_current.W_Y;
-    r_out.w_sum += reservoirWeight;
-    r_out.c += r_current.c;
-    reservoirStrategy = random(vec3(67.71, 31.91, 83.17), seed + 1.0);
-    if (reservoirStrategy < reservoirWeight / r_out.w_sum) {
-        r_out.p_hat = centerTargetFunctionAtCenter;
-        r_out.Y = r_current.Y;
-        r_out.t = r_current.t;
-        fragColor = vec4(0.0, 1.0, 0.0, 1.0); // current
-    }
-
-    r_out.W_Y = r_out.w_sum / r_out.p_hat;
-    out_ReservoirData1 = packReservoir1(r_out);
-    out_ReservoirData2 = packReservoir2(r_out);
-    if (fragColor == vec4(0.0)) {
-        fragColor = vec4(0.0, 1.0, 0.0, 1.0);
-    }
+    Isect isect = intersect(ray, uEye);
+    ReSTIR_Reservoir r = sampleLightsTemporalDI(ray, seed, isect, uReservoirData1, uReservoirData2);
+    out_ReservoirData1 = packReservoir1(r);
+    out_ReservoirData2 = packReservoir2(r);
 }
 
 `;
