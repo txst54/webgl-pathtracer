@@ -1,7 +1,7 @@
 // begin_macro{RESTIRGI_TEMPORAL_RESAMPLING_LIB}
-ReSTIR_Reservoir getTemporalNeighborGI(Isect isectCenter, ReSTIR_Reservoir r_current, sampler2D reservoirData1, sampler2D reservoirData2) {
-    ReSTIR_Reservoir temporalNeighbor = getTemporalNeighbor(isectCenter, reservoirData1, reservoirData2);
-    ReSTIR_Reservoir defaultReservoir = initializeReservoir();
+ReSTIRGI_Reservoir getTemporalNeighborGI(Isect isectCenter, sampler2D reservoirData1, sampler2D reservoirData2) {
+    ReSTIRGI_Reservoir temporalNeighbor = getTemporalNeighborFromTextureGI(isectCenter, reservoirData1, reservoirData2);
+    ReSTIRGI_Reservoir defaultReservoir = initializeReservoirGI();
     if (temporalNeighbor.W_Y < epsilon) {
         return defaultReservoir;
     }
@@ -17,16 +17,90 @@ ReSTIR_Reservoir getTemporalNeighborGI(Isect isectCenter, ReSTIR_Reservoir r_cur
     return temporalNeighbor;
 }
 
-ReSTIR_Reservoir sampleLightsTemporalGI(vec3 ray, float seed, Isect isectCenter, sampler2D reservoirData1, sampler2D reservoirData2) {
-    ReSTIR_Reservoir r_in = initializeReservoir();
-    ReSTIR_Reservoir r_current = sample_lights_ris(r_in, isectCenter, ray, NB_BSDF, NB_LIGHT, seed);
-    ReSTIR_Reservoir r_prev = getTemporalNeighborDI(isectCenter, r_current, reservoirData1, reservoirData2);
+ReSTIRGI_Reservoir samplePath(vec3 ray, float seed, Isect isectCenter) {
+    ReSTIRGI_Reservoir r = initializeReservoirGI();
+    ReSTIRGI_Reservoir defaultReservoir = initializeReservoirGI();
+    ReSTIR_Reservoir r_RIS = initializeReservoir();
+    vec3 colorMask = vec3(1.0);
+    vec3 accumulatedColor = vec3(0.0);
+    vec3 directLight = vec3(0.0);
+    vec3 origin = uEye;
+
+    float timeEntropy = hashValue(uTime);
+    vec2 uv = gl_FragCoord.xy / uRes;
+    float russian_roulette_prob = 1.0;
+    float pdfX = 0.0;
+    for (int bounce = 0; bounce < 1; bounce++) {
+        float roulette = random(vec3(36.7539, 50.3658, 306.2759), dot(gl_FragCoord.xy, vec2(12.9898, 78.233)) + uTime * 17.13 + float(bounce) * 91.71);
+        if (roulette >= russian_roulette_prob) {
+            break;
+        }
+        colorMask /= russian_roulette_prob;
+
+        Isect isect;
+        if (bounce == 0) isect = isectCenter;
+        else isect = intersect(ray, origin);
+
+        if (isect.t == infinity) {
+            break;
+        }
+
+        if (bounce == 1) {
+            r.Y = isect.position;
+        }
+
+        vec3 nextOrigin = isect.position + isect.normal * epsilon;
+        float baseSeed = hashValue(float(bounce) * 51.19 + 79.0) + seed;
+
+        if (bounce > 0) {
+            // simulate direct lighting for our path (bounce > 0)
+            r_RIS = initializeReservoir();
+            r_RIS = sample_lights_ris(r_RIS, isect, ray, NB_BSDF, NB_LIGHT, baseSeed);
+
+            if (r_RIS.w_sum > 0.0) {
+                vec3 brdf = isect.albedo / pi;
+                vec3 sample_direction = normalize(r_RIS.Y - isect.position);
+                float ndotr = dot(isect.normal, sample_direction);
+                directLight = lightIntensity * brdf * abs(ndotr) * r_RIS.W_Y;
+                accumulatedColor += colorMask * directLight;
+            }
+        }
+        vec3 nextRay = cosineWeightedDirection(baseSeed, isect.normal);
+        float pdfCosine = pdfCosineWeighted(nextRay, isect.normal);
+        if (bounce == 0) {
+            pdfX = pdfCosine;
+        }
+        float ndotr = dot(isect.normal, nextRay);
+        if (ndotr <= 0.0 || pdfCosine <= epsilon) break;
+        vec3 brdf = isect.albedo / pi;
+        colorMask *= brdf * ndotr / pdfCosine;
+
+        // Russian Roulette Termination
+        float throughput_max_element = max(max(colorMask.x, colorMask.y), colorMask.z);
+
+        russian_roulette_prob = min(throughput_max_element, 1.0);
+        origin = nextOrigin;
+        ray = nextRay;
+    }
+    r.L = accumulatedColor;
+    if (pdfX < epsilon || dot(r.L, vec3(1.0, 1.0, 1.0)) < epsilon) {
+        return defaultReservoir;
+    }
+    // r.t = isectCenter.t;
+    r.c = 1.0;
+    r.W_Y = 1.0; // w_sum = p_hat/pdfX, W_Y = w_sum / p_hat = p_hat/pdfX/p_hat = pdfX
+    return r;
+}
+
+ReSTIRGI_Reservoir sampleLightsTemporalGI(vec3 ray, float seed, Isect isectCenter, sampler2D reservoirData1, sampler2D reservoirData2) {
+    ReSTIRGI_Reservoir r_current = samplePath(ray, seed, isectCenter);
+    ReSTIRGI_Reservoir r_prev = getTemporalNeighborGI(isectCenter, reservoirData1, reservoirData2);
 
     if (r_prev.W_Y < epsilon) {
         return r_current;
     }
 
-    ReSTIR_Reservoir r_out = resample_temporal(r_current, r_prev, isectCenter, seed);
+    ReSTIRGI_Reservoir r_out = resample_temporalGI(r_current, r_prev, isectCenter, seed);
     return r_out;
 }
 // end_macro

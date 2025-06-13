@@ -20,6 +20,7 @@ uniform sampler2D uReservoirData2;
 // use_macro{RAY_LIB}
 // use_macro{RIS_UTIL}
 // use_macro{RESTIR_RESERVOIR_LIB}
+// use_macro{RESTIRGI_RESERVOIR_LIB}
 // use_macro{RESTIRDI_SPATIAL_RESAMPLING_LIB}
 // use_macro{DIRECT_LIGHT_RIS}
 
@@ -49,7 +50,7 @@ vec4 calculateColor(vec3 origin, vec3 ray, vec3 light) {
         float baseSeed = hashValue(float(bounce) * 51.19 + 79.0) + seed;
 
         if(bounce == 0) {
-            r = sample_lights_restir_spatial(ray, baseSeed, isect);
+            r = sample_lights_restir_spatial(ray, baseSeed, isect, uReservoirData1, uReservoirData2);
             // return vec4(vec3(r.c), 1.0);
             r.c = min(512.0, r.c);
         } else {

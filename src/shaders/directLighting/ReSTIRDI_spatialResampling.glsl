@@ -1,8 +1,8 @@
 //begin_macro{RESTIRDI_SPATIAL_RESAMPLING_LIB}
 
-ReSTIR_Reservoir sample_lights_restir_spatial(vec3 ray, float seed, Isect isectCenter) {
+ReSTIR_Reservoir sample_lights_restir_spatial(vec3 ray, float seed, Isect isectCenter, sampler2D reservoirData1, sampler2D reservoirData2) {
     vec2 uv = gl_FragCoord.xy / uRes;
-    ReSTIR_Reservoir rCenter = unpackReservoir(texture(uReservoirData1, uv), texture(uReservoirData2, uv));
+    ReSTIR_Reservoir rCenter = unpackReservoir(texture(reservoirData1, uv), texture(reservoirData2, uv));
     ReSTIR_Reservoir r = initializeReservoir();
     int MAX_NEIGHBORS = 16;
     ReSTIR_Reservoir candidates[17];
@@ -18,8 +18,8 @@ ReSTIR_Reservoir sample_lights_restir_spatial(vec3 ray, float seed, Isect isectC
 
         vec2 uv = (neighbor) / uRes;
 
-        vec4 uCandidate1 = texture(uReservoirData1, uv);
-        vec4 uCandidate2 = texture(uReservoirData2, uv);
+        vec4 uCandidate1 = texture(reservoirData1, uv);
+        vec4 uCandidate2 = texture(reservoirData2, uv);
 
         candidates[count] = unpackReservoir(uCandidate1, uCandidate2);
         vec2 percent = (neighbor / uRes);

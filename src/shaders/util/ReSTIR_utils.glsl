@@ -1,13 +1,18 @@
 //begin_macro{RESTIR_UTIL}
-ReSTIR_Reservoir getTemporalNeighbor(Isect isectCenter, sampler2D reservoirData1, sampler2D reservoirData2) {
-    ReSTIR_Reservoir r = initializeReservoir();
-    vec4 pWorld = vec4(isectCenter.position, 1.0);
+vec2 getPrevUV(Isect isect) {
+    vec4 pWorld = vec4(isect.position, 1.0);
     vec4 clip_prev = uProjMatPrev * uViewMatPrev * pWorld;
     if (clip_prev.w < epsilon) {
-        return r;
+        return vec2(-1.0); // invalid UV
     }
     vec3 ndc_prev = clip_prev.xyz / clip_prev.w;
-    vec2 uv_prev = ndc_prev.xy * 0.5 + 0.5;
+    return ndc_prev.xy * 0.5 + 0.5; // convert to [0, 1] range
+}
+
+
+ReSTIR_Reservoir getTemporalNeighborFromTexture(Isect isectCenter, sampler2D reservoirData1, sampler2D reservoirData2) {
+    ReSTIR_Reservoir r = initializeReservoir();
+    vec2 uv_prev = getPrevUV(isectCenter);
     if (uv_prev.x < 0.0 || uv_prev.x >= 1.0 || uv_prev.y < 0.0 || uv_prev.y >= 1.0) {
         return r;
     }
@@ -24,7 +29,26 @@ ReSTIR_Reservoir getTemporalNeighbor(Isect isectCenter, sampler2D reservoirData1
     return r_prev;
 }
 
-ReSTIR_Reservoir resample_temporal(ReSTIR_Reservoir r_current, ReSTIR_Reservoir r_prev, Isect isectCenter, float seed) {
+ReSTIRGI_Reservoir getTemporalNeighborFromTextureGI(Isect isectCenter, sampler2D reservoirData1, sampler2D reservoirData2) {
+    ReSTIRGI_Reservoir r = initializeReservoirGI();
+    vec2 uv_prev = getPrevUV(isectCenter);
+    if (uv_prev.x < 0.0 || uv_prev.x >= 1.0 || uv_prev.y < 0.0 || uv_prev.y >= 1.0) {
+        return r;
+    }
+
+    // fetch temporal neighbor
+    vec4 uReservoirData1Vec = texture(reservoirData1, uv_prev);
+    vec4 uReservoirData2Vec = texture(reservoirData2, uv_prev);
+    ReSTIRGI_Reservoir r_prev = unpackReservoirGI(uReservoirData1Vec, uReservoirData2Vec);
+
+    if (r_prev.W_Y < epsilon) {
+        return r;
+    }
+
+    return r_prev;
+}
+
+ReSTIR_Reservoir resample_temporal_base(ReSTIR_Reservoir r_current, ReSTIR_Reservoir r_prev, Isect isectCenter, float seed, out bool acceptCurrent) {
     ReSTIR_Reservoir r_out = initializeReservoir();
     float misWeight;
     float reservoirWeight;
@@ -35,7 +59,7 @@ ReSTIR_Reservoir resample_temporal(ReSTIR_Reservoir r_current, ReSTIR_Reservoir 
 
     ReSTIR_Reservoir[2] reservoirs = ReSTIR_Reservoir[2](r_prev, r_current);
     float[2] targetFunctions = float[2](neighborTargetFunctionAtCenter, centerTargetFunctionAtCenter);
-
+    acceptCurrent = false;
     for (int i = 0; i < 2; i++) {
         if (targetFunctions[i] < epsilon) {
             continue;
@@ -50,10 +74,29 @@ ReSTIR_Reservoir resample_temporal(ReSTIR_Reservoir r_current, ReSTIR_Reservoir 
             r_out.p_hat = targetFunctions[i];
             r_out.Y = reservoirs[i].Y;
             r_out.t = reservoirs[i].t;
+            acceptCurrent = i == 1; // accept the current reservoir if it's the second one (center)
         }
     }
 
     r_out.W_Y = r_out.w_sum / r_out.p_hat;
     return r_out;
+}
+
+ReSTIR_Reservoir resample_temporal(ReSTIR_Reservoir r_current, ReSTIR_Reservoir r_prev, Isect isectCenter, float seed) {
+    bool acceptCurrent;
+    return resample_temporal_base(r_current, r_prev, isectCenter, seed, acceptCurrent);
+}
+
+ReSTIRGI_Reservoir resample_temporalGI(ReSTIRGI_Reservoir r_current, ReSTIRGI_Reservoir r_prev, Isect isectCenter, float seed) {
+    bool acceptCurrent;
+    ReSTIRGI_Reservoir r_out_gi = initializeReservoirGI();
+    ReSTIR_Reservoir r_out = resample_temporal_base(reservoirGIToDI(r_current), reservoirGIToDI(r_prev), isectCenter, seed, acceptCurrent);
+    if (acceptCurrent) {
+        r_out_gi = r_current;
+    } else {
+        r_out_gi = r_prev;
+    }
+    r_out_gi.W_Y = r_out.W_Y;
+    return r_out_gi;
 }
 //end_macro

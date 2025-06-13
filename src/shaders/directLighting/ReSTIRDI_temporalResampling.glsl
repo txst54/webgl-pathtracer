@@ -1,7 +1,7 @@
 // begin_macro{RESTIRDI_TEMPORAL_RESAMPLING_LIB}
 
 ReSTIR_Reservoir getTemporalNeighborDI(Isect isectCenter, ReSTIR_Reservoir r_current, sampler2D reservoirData1, sampler2D reservoirData2) {
-    ReSTIR_Reservoir temporalNeighbor = getTemporalNeighbor(isectCenter, reservoirData1, reservoirData2);
+    ReSTIR_Reservoir temporalNeighbor = getTemporalNeighborFromTexture(isectCenter, reservoirData1, reservoirData2);
     ReSTIR_Reservoir defaultReservoir = initializeReservoir();
     if (temporalNeighbor.W_Y < epsilon) {
         return defaultReservoir;
