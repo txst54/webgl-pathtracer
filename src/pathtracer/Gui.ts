@@ -211,10 +211,6 @@ export class GUI implements IGUI {
         this.animation.setMode(4);
         break;
       }
-      case "Space": {
-        this.animation.jump();
-        break;
-      }
       default: {
         console.log("Key : '", key.code, "' was pressed.");
         break;
