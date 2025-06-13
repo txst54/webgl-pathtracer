@@ -48,13 +48,13 @@ ReSTIRGI_Reservoir getTemporalNeighborFromTextureGI(Isect isectCenter, sampler2D
     return r_prev;
 }
 
-ReSTIR_Reservoir resample_temporal_base(ReSTIR_Reservoir r_current, ReSTIR_Reservoir r_prev, Isect isectCenter, float seed, out bool acceptCurrent) {
+ReSTIR_Reservoir resample_temporal_base(ReSTIR_Reservoir r_current, ReSTIR_Reservoir r_prev, Isect isectCenter, float seed, bool use_p_hat, out bool acceptCurrent) {
     ReSTIR_Reservoir r_out = initializeReservoir();
     float misWeight;
     float reservoirWeight;
     float reservoirStrategy;
     vec3 centerBrdf = isectCenter.albedo / pi;
-    float neighborTargetFunctionAtCenter = evaluate_target_function_at_center(r_prev.Y, isectCenter, centerBrdf);
+    float neighborTargetFunctionAtCenter = use_p_hat ? r_prev.p_hat : evaluate_target_function_at_center(r_prev.Y, isectCenter, centerBrdf);
     float centerTargetFunctionAtCenter = r_current.p_hat;
 
     ReSTIR_Reservoir[2] reservoirs = ReSTIR_Reservoir[2](r_prev, r_current);
@@ -84,13 +84,13 @@ ReSTIR_Reservoir resample_temporal_base(ReSTIR_Reservoir r_current, ReSTIR_Reser
 
 ReSTIR_Reservoir resample_temporal(ReSTIR_Reservoir r_current, ReSTIR_Reservoir r_prev, Isect isectCenter, float seed) {
     bool acceptCurrent;
-    return resample_temporal_base(r_current, r_prev, isectCenter, seed, acceptCurrent);
+    return resample_temporal_base(r_current, r_prev, isectCenter, seed, false, acceptCurrent);
 }
 
 ReSTIRGI_Reservoir resample_temporalGI(ReSTIRGI_Reservoir r_current, ReSTIRGI_Reservoir r_prev, Isect isectCenter, float seed) {
     bool acceptCurrent;
     ReSTIRGI_Reservoir r_out_gi = initializeReservoirGI();
-    ReSTIR_Reservoir r_out = resample_temporal_base(reservoirGIToDI(r_current), reservoirGIToDI(r_prev), isectCenter, seed, acceptCurrent);
+    ReSTIR_Reservoir r_out = resample_temporal_base(reservoirGIToDI(r_current), reservoirGIToDI(r_prev), isectCenter, seed, true, acceptCurrent);
     if (acceptCurrent) {
         r_out_gi = r_current;
     } else {

@@ -30,7 +30,7 @@ ReSTIRGI_Reservoir samplePath(vec3 ray, float seed, Isect isectCenter) {
     vec2 uv = gl_FragCoord.xy / uRes;
     float russian_roulette_prob = 1.0;
     float pdfX = 0.0;
-    for (int bounce = 0; bounce < 1; bounce++) {
+    for (int bounce = 0; bounce < 50; bounce++) {
         float roulette = random(vec3(36.7539, 50.3658, 306.2759), dot(gl_FragCoord.xy, vec2(12.9898, 78.233)) + uTime * 17.13 + float(bounce) * 91.71);
         if (roulette >= russian_roulette_prob) {
             break;

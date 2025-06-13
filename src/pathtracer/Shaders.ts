@@ -516,8 +516,8 @@ void main() {
     // Avoid using 'texture' as a variable name
     vec3 texColor = texture(uTexture, gl_FragCoord.xy / uRes).rgb;
 
-    vec3 color = mix(calculateColor(uEye, initialRay, light).rgb, texColor, uTextureWeight);
-    // vec3 color = calculateColor(uEye, initialRay, light);
+    // vec3 color = mix(calculateColor(uEye, initialRay, light).rgb, texColor, uTextureWeight);
+    vec3 color = calculateColor(uEye, initialRay, light);
     fragColor = vec4(color, 1.0);
 }
 `;
@@ -818,6 +818,10 @@ ReSTIR_Reservoir reservoirGIToDI(ReSTIRGI_Reservoir r_in) {
     r.t = 0.0; // t is not used in GI
     r.c = r.c; // c is the sample count
     return r;
+}
+
+float luminance(vec3 contrib) {
+    return dot(contrib, vec3(0.3086, 0.6094, 0.0820));
 }
 ReSTIR_Reservoir sample_lights_restir_spatial(vec3 ray, float seed, Isect isectCenter, sampler2D reservoirData1, sampler2D reservoirData2) {
     vec2 uv = gl_FragCoord.xy / uRes;
@@ -874,6 +878,67 @@ ReSTIR_Reservoir sample_lights_restir_spatial(vec3 ray, float seed, Isect isectC
         return r;
     }
     r.W_Y = r.w_sum / r.p_hat;
+    return r;
+}
+ReSTIRGI_Reservoir sampleLightsReSTIRGISpatial(vec3 ray, float seed, Isect isectCenter, sampler2D reservoirData1, sampler2D reservoirData2) {
+    vec2 uv = gl_FragCoord.xy / uRes;
+    ReSTIRGI_Reservoir rCenter = unpackReservoirGI(texture(reservoirData1, uv), texture(reservoirData2, uv));
+    ReSTIRGI_Reservoir r = initializeReservoirGI();
+    int MAX_NEIGHBORS = 16;
+    ReSTIRGI_Reservoir candidates[17];
+    candidates[0] = rCenter;
+    int count = 1;
+    float sum_p_hat = luminance(rCenter.L);
+    vec3 centerBrdf = isectCenter.albedo / pi;
+    for (int candidateIndex = 0; candidateIndex < MAX_NEIGHBORS; candidateIndex++) {
+        vec2 dxy = uniformlyRandomDisk(hashValue(seed + float(candidateIndex)), 8);
+        vec2 neighbor = gl_FragCoord.xy + vec2(int(dxy.x), int(dxy.y));
+        if (neighbor.x < 0.0 || neighbor.y < 0.0 ||
+        neighbor.x >= uRes.x || neighbor.y >= uRes.y) continue;
+
+        vec2 uv = (neighbor) / uRes;
+
+        vec4 uCandidate1 = texture(reservoirData1, uv);
+        vec4 uCandidate2 = texture(reservoirData2, uv);
+
+        candidates[count] = unpackReservoirGI(uCandidate1, uCandidate2);
+        vec3 candidateRay = normalize(candidates[count].Y - isectCenter.position);
+        Isect candidateIsect = intersect(candidateRay, isectCenter.position);
+        if (abs(distance(candidateIsect.position, candidates[count].Y)) > epsilon) continue;
+//        vec2 percent = (neighbor / uRes);
+//        vec3 candidateRay = normalize(mix(mix(uRay00, uRay01, percent.y), mix(uRay10, uRay11, percent.y), percent.x));
+//        Isect candidateIsect = intersect(candidateRay, uEye);
+//
+//        if (
+//        dot(candidateIsect.normal, isectCenter.normal) < 0.95 ||
+//        abs(candidateIsect.t - isectCenter.t) / isectCenter.t > 0.3 ||
+//        abs(candidateIsect.t - isectCenter.t) / isectCenter.t < 0.1)
+//        continue;
+
+        // generate X_i
+        sum_p_hat += luminance(candidates[count].L);
+        r.c += candidates[count].c;
+        count++;
+    }
+    if (sum_p_hat <= epsilon) return r;
+    float w_sum = 0.0;
+    for (int i = 0; i < MAX_NEIGHBORS + 1; i++) {
+        if (i >= count) break;
+        ReSTIRGI_Reservoir r_i = candidates[i];
+        float m_i = luminance(r_i.L)/sum_p_hat;
+        float p_hat_at_center = luminance(r_i.L);
+        float w_i = m_i * p_hat_at_center * r_i.W_Y;
+        float randint = random(vec3(71.31, 67.73, 91.83), hashValue(seed + float(i)));
+        w_sum += w_i;
+        if (randint < w_i / w_sum) {
+            r.Y = r_i.Y;
+            r.L = r_i.L;
+        }
+    }
+    if (w_sum == 0.0 || luminance(r.L) <= epsilon) {
+        return r;
+    }
+    r.W_Y = w_sum / luminance(r.L);
     return r;
 }ReSTIR_Reservoir sample_lights_ris(ReSTIR_Reservoir r_in, Isect isect, vec3 ray, int nb_bsdf, int nb_light, float seed) {
     ReSTIR_Reservoir r = r_in;
@@ -944,7 +1009,6 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
 
     float timeEntropy = hashValue(uTime);
     float seed = hashCoords(gl_FragCoord.xy + timeEntropy * vec2(1.0, -1.0));
-    float total_dist = 0.0;
     vec2 uv = gl_FragCoord.xy / uRes;
 
     Isect isect = intersect(ray, origin); // x1
@@ -953,7 +1017,6 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
     }
     vec3 nextOrigin = isect.position + isect.normal * epsilon;
     ReSTIR_Reservoir r = sample_lights_restir_spatial(ray, seed, isect, uDirectReservoirData1, uDirectReservoirData2);
-    // return vec4(vec3(r.c), 1.0);
     r.c = min(512.0, r.c);
 
     if (isect.isLight) {
@@ -968,9 +1031,10 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
         accumulatedColor += colorMask * directLight;
     }
 
-    vec4 indirectReservoirData1 = texture(uIndirectReservoirData1, uv);
-    vec4 indirectReservoirData2 = texture(uIndirectReservoirData2, uv);
-    ReSTIRGI_Reservoir indirectReservoir = unpackReservoirGI(indirectReservoirData1, indirectReservoirData2);
+//    vec4 indirectReservoirData1 = texture(uIndirectReservoirData1, uv);
+//    vec4 indirectReservoirData2 = texture(uIndirectReservoirData2, uv);
+//    ReSTIRGI_Reservoir indirectReservoir = unpackReservoirGI(indirectReservoirData1, indirectReservoirData2);
+    ReSTIRGI_Reservoir indirectReservoir = sampleLightsReSTIRGISpatial(ray, seed, isect, uIndirectReservoirData1, uIndirectReservoirData2);
     accumulatedColor += indirectReservoir.L * indirectReservoir.W_Y;
 
     return accumulatedColor;
@@ -1181,6 +1245,10 @@ ReSTIR_Reservoir reservoirGIToDI(ReSTIRGI_Reservoir r_in) {
     r.t = 0.0; // t is not used in GI
     r.c = r.c; // c is the sample count
     return r;
+}
+
+float luminance(vec3 contrib) {
+    return dot(contrib, vec3(0.3086, 0.6094, 0.0820));
 }float random(vec3 scale, float seed) {
     return fract(sin(dot(gl_FragCoord.xyz + seed, scale)) * 43758.5453 + seed);
 }
@@ -1335,13 +1403,13 @@ ReSTIRGI_Reservoir getTemporalNeighborFromTextureGI(Isect isectCenter, sampler2D
     return r_prev;
 }
 
-ReSTIR_Reservoir resample_temporal_base(ReSTIR_Reservoir r_current, ReSTIR_Reservoir r_prev, Isect isectCenter, float seed, out bool acceptCurrent) {
+ReSTIR_Reservoir resample_temporal_base(ReSTIR_Reservoir r_current, ReSTIR_Reservoir r_prev, Isect isectCenter, float seed, bool use_p_hat, out bool acceptCurrent) {
     ReSTIR_Reservoir r_out = initializeReservoir();
     float misWeight;
     float reservoirWeight;
     float reservoirStrategy;
     vec3 centerBrdf = isectCenter.albedo / pi;
-    float neighborTargetFunctionAtCenter = evaluate_target_function_at_center(r_prev.Y, isectCenter, centerBrdf);
+    float neighborTargetFunctionAtCenter = use_p_hat ? r_prev.p_hat : evaluate_target_function_at_center(r_prev.Y, isectCenter, centerBrdf);
     float centerTargetFunctionAtCenter = r_current.p_hat;
 
     ReSTIR_Reservoir[2] reservoirs = ReSTIR_Reservoir[2](r_prev, r_current);
@@ -1371,13 +1439,13 @@ ReSTIR_Reservoir resample_temporal_base(ReSTIR_Reservoir r_current, ReSTIR_Reser
 
 ReSTIR_Reservoir resample_temporal(ReSTIR_Reservoir r_current, ReSTIR_Reservoir r_prev, Isect isectCenter, float seed) {
     bool acceptCurrent;
-    return resample_temporal_base(r_current, r_prev, isectCenter, seed, acceptCurrent);
+    return resample_temporal_base(r_current, r_prev, isectCenter, seed, false, acceptCurrent);
 }
 
 ReSTIRGI_Reservoir resample_temporalGI(ReSTIRGI_Reservoir r_current, ReSTIRGI_Reservoir r_prev, Isect isectCenter, float seed) {
     bool acceptCurrent;
     ReSTIRGI_Reservoir r_out_gi = initializeReservoirGI();
-    ReSTIR_Reservoir r_out = resample_temporal_base(reservoirGIToDI(r_current), reservoirGIToDI(r_prev), isectCenter, seed, acceptCurrent);
+    ReSTIR_Reservoir r_out = resample_temporal_base(reservoirGIToDI(r_current), reservoirGIToDI(r_prev), isectCenter, seed, true, acceptCurrent);
     if (acceptCurrent) {
         r_out_gi = r_current;
     } else {
@@ -1505,7 +1573,7 @@ ReSTIRGI_Reservoir samplePath(vec3 ray, float seed, Isect isectCenter) {
     vec2 uv = gl_FragCoord.xy / uRes;
     float russian_roulette_prob = 1.0;
     float pdfX = 0.0;
-    for (int bounce = 0; bounce < 1; bounce++) {
+    for (int bounce = 0; bounce < 50; bounce++) {
         float roulette = random(vec3(36.7539, 50.3658, 306.2759), dot(gl_FragCoord.xy, vec2(12.9898, 78.233)) + uTime * 17.13 + float(bounce) * 91.71);
         if (roulette >= russian_roulette_prob) {
             break;
@@ -1563,7 +1631,7 @@ ReSTIRGI_Reservoir samplePath(vec3 ray, float seed, Isect isectCenter) {
     }
     // r.t = isectCenter.t;
     r.c = 1.0;
-    r.W_Y = pdfX; // w_sum = p_hat/pdfX, W_Y = w_sum / p_hat = p_hat/pdfX/p_hat = pdfX
+    r.W_Y = 1.0; // w_sum = p_hat/pdfX, W_Y = w_sum / p_hat = p_hat/pdfX/p_hat = pdfX
     return r;
 }
 
@@ -2220,6 +2288,10 @@ ReSTIR_Reservoir reservoirGIToDI(ReSTIRGI_Reservoir r_in) {
     r.t = 0.0; // t is not used in GI
     r.c = r.c; // c is the sample count
     return r;
+}
+
+float luminance(vec3 contrib) {
+    return dot(contrib, vec3(0.3086, 0.6094, 0.0820));
 }
 ReSTIR_Reservoir sample_lights_restir_spatial(vec3 ray, float seed, Isect isectCenter, sampler2D reservoirData1, sampler2D reservoirData2) {
     vec2 uv = gl_FragCoord.xy / uRes;
@@ -2603,6 +2675,10 @@ ReSTIR_Reservoir reservoirGIToDI(ReSTIRGI_Reservoir r_in) {
     r.t = 0.0; // t is not used in GI
     r.c = r.c; // c is the sample count
     return r;
+}
+
+float luminance(vec3 contrib) {
+    return dot(contrib, vec3(0.3086, 0.6094, 0.0820));
 }float random(vec3 scale, float seed) {
     return fract(sin(dot(gl_FragCoord.xyz + seed, scale)) * 43758.5453 + seed);
 }
@@ -2757,13 +2833,13 @@ ReSTIRGI_Reservoir getTemporalNeighborFromTextureGI(Isect isectCenter, sampler2D
     return r_prev;
 }
 
-ReSTIR_Reservoir resample_temporal_base(ReSTIR_Reservoir r_current, ReSTIR_Reservoir r_prev, Isect isectCenter, float seed, out bool acceptCurrent) {
+ReSTIR_Reservoir resample_temporal_base(ReSTIR_Reservoir r_current, ReSTIR_Reservoir r_prev, Isect isectCenter, float seed, bool use_p_hat, out bool acceptCurrent) {
     ReSTIR_Reservoir r_out = initializeReservoir();
     float misWeight;
     float reservoirWeight;
     float reservoirStrategy;
     vec3 centerBrdf = isectCenter.albedo / pi;
-    float neighborTargetFunctionAtCenter = evaluate_target_function_at_center(r_prev.Y, isectCenter, centerBrdf);
+    float neighborTargetFunctionAtCenter = use_p_hat ? r_prev.p_hat : evaluate_target_function_at_center(r_prev.Y, isectCenter, centerBrdf);
     float centerTargetFunctionAtCenter = r_current.p_hat;
 
     ReSTIR_Reservoir[2] reservoirs = ReSTIR_Reservoir[2](r_prev, r_current);
@@ -2793,13 +2869,13 @@ ReSTIR_Reservoir resample_temporal_base(ReSTIR_Reservoir r_current, ReSTIR_Reser
 
 ReSTIR_Reservoir resample_temporal(ReSTIR_Reservoir r_current, ReSTIR_Reservoir r_prev, Isect isectCenter, float seed) {
     bool acceptCurrent;
-    return resample_temporal_base(r_current, r_prev, isectCenter, seed, acceptCurrent);
+    return resample_temporal_base(r_current, r_prev, isectCenter, seed, false, acceptCurrent);
 }
 
 ReSTIRGI_Reservoir resample_temporalGI(ReSTIRGI_Reservoir r_current, ReSTIRGI_Reservoir r_prev, Isect isectCenter, float seed) {
     bool acceptCurrent;
     ReSTIRGI_Reservoir r_out_gi = initializeReservoirGI();
-    ReSTIR_Reservoir r_out = resample_temporal_base(reservoirGIToDI(r_current), reservoirGIToDI(r_prev), isectCenter, seed, acceptCurrent);
+    ReSTIR_Reservoir r_out = resample_temporal_base(reservoirGIToDI(r_current), reservoirGIToDI(r_prev), isectCenter, seed, true, acceptCurrent);
     if (acceptCurrent) {
         r_out_gi = r_current;
     } else {

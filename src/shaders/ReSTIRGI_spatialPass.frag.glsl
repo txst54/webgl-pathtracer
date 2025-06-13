@@ -24,6 +24,7 @@ uniform sampler2D uIndirectReservoirData2;
 // use_macro{RESTIR_RESERVOIR_LIB}
 // use_macro{RESTIRGI_RESERVOIR_LIB}
 // use_macro{RESTIRDI_SPATIAL_RESAMPLING_LIB}
+// use_macro{RESTIRGI_SPATIAL_RESAMPLING_LIB}
 // use_macro{DIRECT_LIGHT_RIS}
 
 vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
@@ -33,7 +34,6 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
 
     float timeEntropy = hashValue(uTime);
     float seed = hashCoords(gl_FragCoord.xy + timeEntropy * vec2(1.0, -1.0));
-    float total_dist = 0.0;
     vec2 uv = gl_FragCoord.xy / uRes;
 
     Isect isect = intersect(ray, origin); // x1
@@ -42,7 +42,6 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
     }
     vec3 nextOrigin = isect.position + isect.normal * epsilon;
     ReSTIR_Reservoir r = sample_lights_restir_spatial(ray, seed, isect, uDirectReservoirData1, uDirectReservoirData2);
-    // return vec4(vec3(r.c), 1.0);
     r.c = min(512.0, r.c);
 
     if (isect.isLight) {
@@ -57,9 +56,10 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
         accumulatedColor += colorMask * directLight;
     }
 
-    vec4 indirectReservoirData1 = texture(uIndirectReservoirData1, uv);
-    vec4 indirectReservoirData2 = texture(uIndirectReservoirData2, uv);
-    ReSTIRGI_Reservoir indirectReservoir = unpackReservoirGI(indirectReservoirData1, indirectReservoirData2);
+//    vec4 indirectReservoirData1 = texture(uIndirectReservoirData1, uv);
+//    vec4 indirectReservoirData2 = texture(uIndirectReservoirData2, uv);
+//    ReSTIRGI_Reservoir indirectReservoir = unpackReservoirGI(indirectReservoirData1, indirectReservoirData2);
+    ReSTIRGI_Reservoir indirectReservoir = sampleLightsReSTIRGISpatial(ray, seed, isect, uIndirectReservoirData1, uIndirectReservoirData2);
     accumulatedColor += indirectReservoir.L * indirectReservoir.W_Y;
 
     return accumulatedColor;

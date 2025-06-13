@@ -98,7 +98,7 @@ void main() {
     // Avoid using 'texture' as a variable name
     vec3 texColor = texture(uTexture, gl_FragCoord.xy / uRes).rgb;
 
-    vec3 color = mix(calculateColor(uEye, initialRay, light).rgb, texColor, uTextureWeight);
-    // vec3 color = calculateColor(uEye, initialRay, light);
+    // vec3 color = mix(calculateColor(uEye, initialRay, light).rgb, texColor, uTextureWeight);
+    vec3 color = calculateColor(uEye, initialRay, light);
     fragColor = vec4(color, 1.0);
 }

@@ -43,4 +43,8 @@ ReSTIR_Reservoir reservoirGIToDI(ReSTIRGI_Reservoir r_in) {
     r.c = r.c; // c is the sample count
     return r;
 }
+
+float luminance(vec3 contrib) {
+    return dot(contrib, vec3(0.3086, 0.6094, 0.0820));
+}
 // end_macro
