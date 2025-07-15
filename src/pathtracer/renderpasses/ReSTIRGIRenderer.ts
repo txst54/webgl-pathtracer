@@ -11,13 +11,14 @@ import {PathTracer} from "../App";
 export default class ReSTIRGIRenderer extends BaseRenderer {
     private spatialTemporalConfig: TextureConfig;
     private pingpong: number = 0;
+    private static readonly RESERVOIR_TEXTURES = 4;
+    private static readonly PING_PONG_OFFSET = ReSTIRGIRenderer.RESERVOIR_TEXTURES + 2; // 4 for reservoirs + 1 for depthmap
     private pathTracer: PathTracer;
 
     protected initialize(pathTracer: PathTracer): void {
         const type = this.gl.getExtension('OES_texture_float') ? this.gl.FLOAT : this.gl.UNSIGNED_BYTE;
         this.frameBuffer = this.gl.createFramebuffer();
-        // 4 textures for temporal * 2 (pingpong)
-        this.spatialTemporalConfig = this.createTextureConfig(8, type);
+        this.spatialTemporalConfig = this.createTextureConfig(ReSTIRGIRenderer.PING_PONG_OFFSET * 2, type);
 
         this.renderPasses.restirTemporal = new RenderPass(this.gl, pathTracerVSText, ReSTIRGI_temporalPassFSText);
         this.renderPasses.restirTemporal1 = new RenderPass(this.gl, pathTracerVSText, ReSTIRGI_temporalPassFSText);
@@ -31,31 +32,31 @@ export default class ReSTIRGIRenderer extends BaseRenderer {
 
     public render(): void {
         const gl = this.gl as WebGL2RenderingContext;
-        const writeStartIndex = this.pingpong === 0 ? 4 : 0;
+        const writeStartIndex = this.pingpong === 0 ? ReSTIRGIRenderer.PING_PONG_OFFSET : 0;
 
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.frameBuffer);
-        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.spatialTemporalConfig.textures[writeStartIndex], 0);
-        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, this.spatialTemporalConfig.textures[writeStartIndex + 1], 0);
-        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT2, gl.TEXTURE_2D, this.spatialTemporalConfig.textures[writeStartIndex + 2], 0);
-        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT3, gl.TEXTURE_2D, this.spatialTemporalConfig.textures[writeStartIndex + 3], 0);
-        gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1, gl.COLOR_ATTACHMENT2, gl.COLOR_ATTACHMENT3]);
+        let buffers = [];
+        for (let i = 0; i < ReSTIRGIRenderer.PING_PONG_OFFSET; i++) {
+            gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0 + i, gl.TEXTURE_2D, this.spatialTemporalConfig.textures[writeStartIndex + i], 0);
+            buffers.push(gl.COLOR_ATTACHMENT0 + i);
+        }
+        gl.drawBuffers(buffers);
 
         const temporalPass = this.pingpong === 0 ? this.renderPasses.restirTemporal : this.renderPasses.restirTemporal1;
         temporalPass.draw();
 
-        this.pingpong = 1 - this.pingpong;
-        this.pathTracer.getGUI().getCamera().updateViewMatrixNext();
-
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
         const spatialPass = this.pingpong == 0 ? this.renderPasses.restirSpatial1 : this.renderPasses.restirSpatial;
         spatialPass.draw();
+        this.pingpong = 1 - this.pingpong;
+        this.pathTracer.getGUI().getCamera().updateViewMatrixNext();
     }
 
     private setupPasses(pathTracer: PathTracer): void {
         this.setupSpatioTemporalPass(this.renderPasses.restirTemporal, pathTracer, 0);
-        this.setupSpatioTemporalPass(this.renderPasses.restirTemporal1, pathTracer, 4);
+        this.setupSpatioTemporalPass(this.renderPasses.restirTemporal1, pathTracer, ReSTIRGIRenderer.PING_PONG_OFFSET);
         this.setupSpatioTemporalPass(this.renderPasses.restirSpatial, pathTracer, 0);
-        this.setupSpatioTemporalPass(this.renderPasses.restirSpatial1, pathTracer, 4);
+        this.setupSpatioTemporalPass(this.renderPasses.restirSpatial1, pathTracer, ReSTIRGIRenderer.PING_PONG_OFFSET);
     }
 
     private setupSpatioTemporalPass(renderPass: RenderPass, pathTracer: PathTracer, offset: number): void {
@@ -71,6 +72,17 @@ export default class ReSTIRGIRenderer extends BaseRenderer {
                 });
             }
         }
+        renderPass.addUniform(`uDepthMap`, (gl, loc) => {
+            gl.activeTexture(gl.TEXTURE0 + 4);
+            gl.bindTexture(gl.TEXTURE_2D, this.spatialTemporalConfig.textures[4 + offset]);
+            gl.uniform1i(loc, 4);
+        });
+
+        renderPass.addUniform(`uNormalMap`, (gl, loc) => {
+            gl.activeTexture(gl.TEXTURE0 + 5);
+            gl.bindTexture(gl.TEXTURE_2D, this.spatialTemporalConfig.textures[5 + offset]);
+            gl.uniform1i(loc, 5);
+        });
 
         renderPass.setDrawData(this.gl.TRIANGLES, numIndices, this.gl.UNSIGNED_SHORT, 0);
         renderPass.setup();

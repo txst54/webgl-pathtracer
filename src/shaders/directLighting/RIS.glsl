@@ -36,7 +36,7 @@ ReSTIR_Reservoir sample_lights_ris(ReSTIR_Reservoir r_in, Isect isect, vec3 ray,
 
         float pdfX = max(epsilon, usedCosine ? pdfCosine : pdfLight);
 
-        vec3 brdf = isect.albedo / pi;
+        vec3 brdf = isect.albedo / PI;
         float ndotr = dot(isect.normal, next_ray);
         float pHat = evaluate_target_function_at_center(light_sample, isect, brdf);
 

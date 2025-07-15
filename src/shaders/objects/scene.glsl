@@ -13,6 +13,7 @@ struct Isect {
 
 Isect intersect(vec3 ray, vec3 origin) {
     Isect isect;
+    ray = normalize(ray);
     vec2 tRoom = intersectCube(origin, ray, roomCubeMin, roomCubeMax);
     float tSphere = intersectSphere(origin, ray, sphereCenter, sphereRadius);
     float tLight = intersectSphere(origin, ray, light, lightSize);
@@ -24,7 +25,7 @@ Isect intersect(vec3 ray, vec3 origin) {
     if (tLight < t) t = tLight;
 
     isect.t = t;
-    isect.albedo = vec3(1.0);
+    isect.albedo = WHITECOLOR;
     isect.position = origin + ray * t;
     // float specularHighlight = 0.0;
 
@@ -34,11 +35,11 @@ Isect intersect(vec3 ray, vec3 origin) {
 
     if (t == tRoom.y) {
         isect.normal = -normalForCube(isect.position, roomCubeMin, roomCubeMax);
-        if(isect.position.x < -9.9999) isect.albedo = vec3(0.1, 0.5, 1.0);
-        else if(isect.position.x > 9.9999) isect.albedo = vec3(1.0, 0.9, 0.1);
+        if(isect.position.x < -9.9999) isect.albedo = GREENCOLOR;
+        else if(isect.position.x > 9.9999) isect.albedo = REDCOLOR;
     }  else if (t == tWall.x) {
         isect.normal = normalForCube(isect.position, wallCubeMin, wallCubeMax);
-        isect.albedo = vec3(1.0); // Wall color
+        isect.albedo = WHITECOLOR; // Wall color
     } else if (t == tSphere) {
         isect.normal = normalForSphere(isect.position, sphereCenter, sphereRadius);
     } else if (t == tLight) {

@@ -20,7 +20,7 @@ vec3 cosineWeightedDirection(float seed, vec3 normal) {
 vec3 uniformSpherePos(vec3 origin, float seed, vec3 center, float radius) {
     float u = random(vec3(12.9898, 78.233, 151.7182), seed);
     float v = random(vec3(63.7264, 10.873, 623.6736), seed);
-    float theta = 2.0 * pi * u;
+    float theta = 2.0 * PI * u;
     float phi = acos(2.0 * v - 1.0);
     vec3 lightPoint = center + radius * vec3(cos(theta) * sin(phi), sin(theta) * sin(phi), cos(phi));
     return lightPoint;
@@ -34,7 +34,7 @@ vec3 uniformSphereDirection(vec3 origin, float seed, vec3 center, float radius) 
 float pdfCosineWeighted(vec3 direction, vec3 normal) {
     float cosTheta = dot(direction, normal);
     if (cosTheta <= 0.0) return epsilon;
-    return cosTheta / pi;
+    return cosTheta / PI;
 }
 
 float pdfUniformSphere(vec3 direction, vec3 origin) {
@@ -44,11 +44,12 @@ float pdfUniformSphere(vec3 direction, vec3 origin) {
         float dist2 = dot(fromLightDir, fromLightDir);
         fromLightDir = normalize(fromLightDir);
         vec3 lightNormal = normalize(isect.position - light);
-        float cosAtLight = max(0.0, dot(lightNormal, fromLightDir));
+        float cosAtLight = clamp(dot(lightNormal, fromLightDir), 0., 1.);
         if (cosAtLight < epsilon || dist2 < epsilon) return epsilon;
-        float surfaceArea = 4.0 * pi * lightSize * lightSize;
+        float surfaceArea = 4.0 * PI * lightSize * lightSize;
+        float pdfArea = 1.0 / surfaceArea;
         // Conversion factor from area to solid angle pdf is cos(theta)/dist2 and you divide by conversion factor
-        float pArea = (1.0 / surfaceArea) * (dist2 / cosAtLight);
+        float pArea =  pdfArea * dist2 / cosAtLight;
         return pArea;
     }
     return epsilon;

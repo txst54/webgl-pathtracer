@@ -10,6 +10,7 @@ uniform sampler2D uDirectReservoirData1;
 uniform sampler2D uDirectReservoirData2;
 uniform sampler2D uIndirectReservoirData1;
 uniform sampler2D uIndirectReservoirData2;
+uniform sampler2D uDepthMap;
 
 #define NB_BSDF 1
 #define NB_LIGHT 1
@@ -20,9 +21,10 @@ uniform sampler2D uIndirectReservoirData2;
 // use_macro{CUBE_LIB}
 // use_macro{SCENE_LIB}
 // use_macro{RAY_LIB}
-// use_macro{RIS_UTIL}
 // use_macro{RESTIR_RESERVOIR_LIB}
 // use_macro{RESTIRGI_RESERVOIR_LIB}
+// use_macro{RIS_UTIL}
+// use_macro{RESTIR_EQ_UTIL}
 // use_macro{RESTIRDI_SPATIAL_RESAMPLING_LIB}
 // use_macro{RESTIRGI_SPATIAL_RESAMPLING_LIB}
 // use_macro{DIRECT_LIGHT_RIS}
@@ -45,14 +47,14 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
     r.c = min(512.0, r.c);
 
     if (isect.isLight) {
-        accumulatedColor += lightIntensity;
+        accumulatedColor += LIGHTCOLOR;
     }
 
     if (r.w_sum > 0.0) {
-        vec3 brdf = isect.albedo / pi;
+        vec3 brdf = isect.albedo / PI;
         vec3 sample_direction = normalize(r.Y - isect.position);
         float ndotr = dot(isect.normal, sample_direction);
-        directLight = lightIntensity * brdf * abs(ndotr) * r.W_Y;
+        directLight = LIGHTCOLOR * brdf * abs(ndotr) * r.W_Y;
         accumulatedColor += colorMask * directLight;
     }
 
@@ -60,12 +62,15 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
 //    vec4 indirectReservoirData2 = texture(uIndirectReservoirData2, uv);
 //    ReSTIRGI_Reservoir indirectReservoir = unpackReservoirGI(indirectReservoirData1, indirectReservoirData2);
     ReSTIRGI_Reservoir indirectReservoir = sampleLightsReSTIRGISpatial(ray, seed, isect, uIndirectReservoirData1, uIndirectReservoirData2);
-    accumulatedColor += indirectReservoir.L * indirectReservoir.W_Y;
+    vec3 brdf = isect.albedo / PI;
+    vec3 estimatedRadiance = evaluateRadianceAtCenterGI(indirectReservoir, isect, brdf);
+    accumulatedColor += estimatedRadiance * indirectReservoir.W_Y;
 
     return accumulatedColor;
 }
 
 void main() {
     vec3 color = calculateColor(uEye, initialRay, light);
+    color = pow( clamp(color,0.0,1.0), vec3(0.45) );
     fragColor = vec4(color, 1.0);
 }

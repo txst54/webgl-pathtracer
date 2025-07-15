@@ -24,7 +24,7 @@ uniform sampler2D uReservoirData2;
 // use_macro{RESTIRDI_SPATIAL_RESAMPLING_LIB}
 // use_macro{DIRECT_LIGHT_RIS}
 
-vec4 calculateColor(vec3 origin, vec3 ray, vec3 light) {
+vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
     vec3 colorMask = vec3(1.0);
     vec3 accumulatedColor = vec3(0.0);
     vec3 directLight = vec3(0.0);
@@ -35,7 +35,7 @@ vec4 calculateColor(vec3 origin, vec3 ray, vec3 light) {
     ReSTIR_Reservoir r = initializeReservoir();
     float russian_roulette_prob = 1.0;
     for (int bounce = 0; bounce < 1; bounce++) {
-        float roulette = random(vec3(36.7539, 50.3658, 306.2759), dot(gl_FragCoord.xy, vec2(12.9898, 78.233)) + uTime * 17.13 + float(bounce) * 91.71);
+        float roulette = random(vec3(hashValue(36.7539*float(bounce)), hashValue(50.3658*float(bounce)), hashValue(306.2759*float(bounce))), dot(gl_FragCoord.xy, vec2(12.9898, 78.233)) + uTime * 17.13 + float(bounce) * 91.71);
         if (roulette >= russian_roulette_prob) {
             break;
         }
@@ -59,14 +59,14 @@ vec4 calculateColor(vec3 origin, vec3 ray, vec3 light) {
         }
 
         if (isect.isLight && bounce == 0) {
-            accumulatedColor += lightIntensity;
+            accumulatedColor += LIGHTCOLOR;
         }
 
         if (r.w_sum > 0.0) {
-            vec3 brdf = isect.albedo / pi;
+            vec3 brdf = isect.albedo / PI;
             vec3 sample_direction = normalize(r.Y - isect.position);
             float ndotr = dot(isect.normal, sample_direction);
-            directLight = lightIntensity * brdf * abs(ndotr) * r.W_Y;
+            directLight = LIGHTCOLOR * brdf * abs(ndotr) * r.W_Y;
             accumulatedColor += colorMask * directLight;
         }
 
@@ -74,7 +74,7 @@ vec4 calculateColor(vec3 origin, vec3 ray, vec3 light) {
         float pdfCosine = pdfCosineWeighted(nextRay, isect.normal);
         float ndotr = dot(isect.normal, nextRay);
         if (ndotr <= 0.0 || pdfCosine <= epsilon) break;
-        vec3 brdf = isect.albedo / pi;
+        vec3 brdf = isect.albedo / PI;
         colorMask *= brdf * ndotr / pdfCosine;
 
         // Russian Roulette Termination
@@ -84,10 +84,11 @@ vec4 calculateColor(vec3 origin, vec3 ray, vec3 light) {
         ray = nextRay;
     }
 
-    return vec4(accumulatedColor, 1.0);
+    return accumulatedColor;
 }
 
 void main() {
-    vec4 color = calculateColor(uEye, initialRay, light);
-    fragColor = color;
+    vec3 color = calculateColor(uEye, initialRay, light);
+    color = pow( clamp(color,0.0,1.0), vec3(0.45) );
+    fragColor = vec4(color, 1.0);
 }

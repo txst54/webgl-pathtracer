@@ -1,4 +1,5 @@
 //begin_macro{RESTIRDI_SPATIAL_RESAMPLING_LIB}
+#define SPATIAL_RESAMPLING_RADIUS 8
 
 ReSTIR_Reservoir sample_lights_restir_spatial(vec3 ray, float seed, Isect isectCenter, sampler2D reservoirData1, sampler2D reservoirData2) {
     vec2 uv = gl_FragCoord.xy / uRes;
@@ -9,9 +10,9 @@ ReSTIR_Reservoir sample_lights_restir_spatial(vec3 ray, float seed, Isect isectC
     candidates[0] = rCenter;
     int count = 1;
     float sum_p_hat = rCenter.p_hat;
-    vec3 centerBrdf = isectCenter.albedo / pi;
+    vec3 centerBrdf = isectCenter.albedo / PI;
     for (int candidateIndex = 0; candidateIndex < MAX_NEIGHBORS; candidateIndex++) {
-        vec2 dxy = uniformlyRandomDisk(hashValue(seed + float(candidateIndex)), 8);
+        vec2 dxy = uniformlyRandomDisk(hashValue(seed + float(candidateIndex)), SPATIAL_RESAMPLING_RADIUS);
         vec2 neighbor = gl_FragCoord.xy + vec2(int(dxy.x), int(dxy.y));
         if (neighbor.x < 0.0 || neighbor.y < 0.0 ||
         neighbor.x >= uRes.x || neighbor.y >= uRes.y) continue;
@@ -26,10 +27,11 @@ ReSTIR_Reservoir sample_lights_restir_spatial(vec3 ray, float seed, Isect isectC
         vec3 candidateRay = normalize(mix(mix(uRay00, uRay01, percent.y), mix(uRay10, uRay11, percent.y), percent.x));
         Isect candidateIsect = intersect(candidateRay, uEye);
 
+        float dist = length(candidateIsect.position - isectCenter.position);
         if (
             dot(candidateIsect.normal, isectCenter.normal) < 0.95 ||
             abs(candidateIsect.t - isectCenter.t) / isectCenter.t > 0.3 ||
-            abs(candidateIsect.t - isectCenter.t) / isectCenter.t < 0.1)
+            abs(candidateIsect.t - isectCenter.t) / isectCenter.t < 0.0 || dist > 1.0)
         continue;
 
         // generate X_i

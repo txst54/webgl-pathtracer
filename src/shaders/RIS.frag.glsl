@@ -24,7 +24,7 @@ uniform vec2 uRes;
 
 out vec4 fragColor;
 
-vec4 calculateColor(vec3 origin, vec3 ray, vec3 light) {
+vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
     vec3 colorMask = vec3(1.0);
     vec3 accumulatedColor = vec3(0.0);
     vec3 directLight = vec3(0.0);
@@ -52,14 +52,14 @@ vec4 calculateColor(vec3 origin, vec3 ray, vec3 light) {
         r = sample_lights_ris(r, isect, ray, NB_BSDF, NB_LIGHT, baseSeed);
 
         if (isect.isLight && bounce == 0) {
-            accumulatedColor += lightIntensity;
+            accumulatedColor += LIGHTCOLOR;
         }
 
         if (r.w_sum > 0.0) {
-            vec3 brdf = isect.albedo / pi;
+            vec3 brdf = isect.albedo / PI;
             vec3 sample_direction = normalize(r.Y - isect.position);
             float ndotr = dot(isect.normal, sample_direction);
-            directLight = lightIntensity * brdf * abs(ndotr) * r.W_Y;
+            directLight = LIGHTCOLOR * brdf * abs(ndotr) * r.W_Y;
             accumulatedColor += colorMask * directLight;
         }
 
@@ -67,7 +67,7 @@ vec4 calculateColor(vec3 origin, vec3 ray, vec3 light) {
         float pdfCosine = pdfCosineWeighted(nextRay, isect.normal);
         float ndotr = dot(isect.normal, nextRay);
         if (ndotr <= 0.0 || pdfCosine <= epsilon) break;
-        vec3 brdf = isect.albedo / pi;
+        vec3 brdf = isect.albedo / PI;
         colorMask *= brdf * ndotr / pdfCosine;
 
         // Russian Roulette Termination
@@ -79,7 +79,7 @@ vec4 calculateColor(vec3 origin, vec3 ray, vec3 light) {
         ray = nextRay;
     }
 
-    return vec4(accumulatedColor, 1.0);
+    return accumulatedColor;
 }
 
 void main() {
@@ -87,7 +87,8 @@ void main() {
     // Avoid using 'texture' as a variable name
     vec3 texColor = texture(uTexture, gl_FragCoord.xy / uRes).rgb;
 
-    vec4 color = calculateColor(uEye, initialRay, light);
+    vec3 color = calculateColor(uEye, initialRay, light);
     // vec3 color = mix(calculateColor(uEye, initialRay, light), texColor, uTextureWeight);
-    fragColor = color;
+    color = pow( clamp(color,0.0,1.0), vec3(0.45) );
+    fragColor = vec4(color, 1.0);
 }

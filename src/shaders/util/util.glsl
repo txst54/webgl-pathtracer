@@ -32,8 +32,8 @@ vec3 uniformlyRandomVector(float seed) {
 vec2 uniformlyRandomDisk(float seed, int radius) {
     float u = random(vec3(12.9898, 78.233, 151.7182), seed);
     float v = random(vec3(63.7264, 10.873, 623.6736), seed + 1.0);
-    float x = float(radius) * sqrt(u) * cos(2.0 * pi * u);
-    float y = float(radius) * sqrt(v) * sin(2.0 * pi * v);
+    float x = float(radius) * sqrt(u) * cos(2.0 * PI * u);
+    float y = float(radius) * sqrt(v) * sin(2.0 * PI * v);
     return vec2(x, y);
 }
 // end_macro
@@ -49,8 +49,12 @@ vec3 light = vec3(6.0, 8.0, 6.0);
 float lightIntensity = 1.0;
 float infinity = 10000.0;
 float epsilon = 0.00001;
-float lightSize = 0.2;
-float pi = 3.14159265359;
+float lightSize = 2.0;
 float maxBounces = 100.0;
 vec3 ReSTIR_lightEmission = vec3(0.5); // Light intensity/color
+#define PI 3.14159265359
+#define LIGHTCOLOR vec3(16.86, 10.76, 8.2)*0.15
+#define WHITECOLOR vec3(.7295, .7355, .729)*0.7
+#define GREENCOLOR vec3(.117, .5125, .115)*0.7
+#define REDCOLOR vec3(.711, .0555, .062)*0.7
 // end_macro

@@ -28,7 +28,7 @@ interface CameraRays {
 
 export class PathTracer extends CanvasAnimation {
   private static readonly MODE_NAMES = ["MIS", "RIS", "ReSTIR DI [Spatial Pass]", "ReSTIR DI", "ReSTIR GI"];
-  private static readonly MOVEMENT_SPEED = 0.1;
+  private static readonly MOVEMENT_SPEED = 0.2;
 
   // Core components
   private gui: GUI;
@@ -148,7 +148,7 @@ export class PathTracer extends CanvasAnimation {
   }
 
   private updatePlayerMovement(): void {
-    this.playerPosition.add(this.gui.walkDir().copy().scale(PathTracer.MOVEMENT_SPEED));
+    this.playerPosition.add(this.gui.walkDir().copy().scale(PathTracer.MOVEMENT_SPEED * 60 / this.fpsCounter.getFPS()));
     this.gui.getCamera().setPos(this.playerPosition);
   }
 

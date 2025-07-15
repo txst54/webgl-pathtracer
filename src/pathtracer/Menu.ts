@@ -3,7 +3,7 @@ export class FPSCounter {
 
     private frameCount = 0;
     private lastTime = performance.now();
-    private fps = 0;
+    private fps = 60;
     private frameTime = 0;
     private sampleCount = 0;
     private currentMode = 0;

@@ -9,7 +9,7 @@ ReSTIRGI_Reservoir sampleLightsReSTIRGISpatial(vec3 ray, float seed, Isect isect
     candidates[0] = rCenter;
     int count = 1;
     float sum_p_hat = luminance(rCenter.L);
-    vec3 centerBrdf = isectCenter.albedo / pi;
+    vec3 centerBrdf = isectCenter.albedo / PI;
     for (int candidateIndex = 0; candidateIndex < MAX_NEIGHBORS; candidateIndex++) {
         vec2 dxy = uniformlyRandomDisk(hashValue(seed + float(candidateIndex)), 8);
         vec2 neighbor = gl_FragCoord.xy + vec2(int(dxy.x), int(dxy.y));
@@ -25,15 +25,16 @@ ReSTIRGI_Reservoir sampleLightsReSTIRGISpatial(vec3 ray, float seed, Isect isect
         vec3 candidateRay = normalize(candidates[count].Y - isectCenter.position);
         Isect candidateIsect = intersect(candidateRay, isectCenter.position);
         if (abs(distance(candidateIsect.position, candidates[count].Y)) > epsilon) continue;
-//        vec2 percent = (neighbor / uRes);
-//        vec3 candidateRay = normalize(mix(mix(uRay00, uRay01, percent.y), mix(uRay10, uRay11, percent.y), percent.x));
-//        Isect candidateIsect = intersect(candidateRay, uEye);
-//
-//        if (
-//        dot(candidateIsect.normal, isectCenter.normal) < 0.95 ||
-//        abs(candidateIsect.t - isectCenter.t) / isectCenter.t > 0.3 ||
-//        abs(candidateIsect.t - isectCenter.t) / isectCenter.t < 0.1)
-//        continue;
+        vec2 percent = (neighbor / uRes);
+        candidateRay = normalize(mix(mix(uRay00, uRay01, percent.y), mix(uRay10, uRay11, percent.y), percent.x));
+        candidateIsect = intersect(candidateRay, uEye);
+
+        float dist = length(candidateIsect.position - isectCenter.position);
+        if (
+        dot(candidateIsect.normal, isectCenter.normal) < 0.95 ||
+        abs(candidateIsect.t - isectCenter.t) / isectCenter.t > 0.3 ||
+        abs(candidateIsect.t - isectCenter.t) / isectCenter.t < 0.1 || dist > 1.0)
+        continue;
 
         // generate X_i
         sum_p_hat += luminance(candidates[count].L);
@@ -46,7 +47,7 @@ ReSTIRGI_Reservoir sampleLightsReSTIRGISpatial(vec3 ray, float seed, Isect isect
         if (i >= count) break;
         ReSTIRGI_Reservoir r_i = candidates[i];
         float m_i = luminance(r_i.L)/sum_p_hat;
-        float p_hat_at_center = luminance(r_i.L);
+        float p_hat_at_center = evaluateTargetFunctionAtCenterGI(r_i, isectCenter, centerBrdf);
         float w_i = m_i * p_hat_at_center * r_i.W_Y;
         float randint = random(vec3(71.31, 67.73, 91.83), hashValue(seed + float(i)));
         w_sum += w_i;
