@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "target": "es2015",             // or "esnext"
+    "lib": ["es2015", "dom"],       // add "es2015" to use Map, Set, etc.
+    "module": "esnext",
+    "moduleResolution": "node",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  }
+}

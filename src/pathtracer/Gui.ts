@@ -1,8 +1,6 @@
 import { Camera } from "../lib/webglutils/Camera.js";
-import { CanvasAnimation } from "../lib/webglutils/CanvasAnimation.js";
 import { PathTracer } from "./App.js";
-import { Mat4, Vec3, Vec4, Vec2, Mat2, Quat } from "../lib/TSM.js";
-import { RenderPass } from "../lib/webglutils/RenderPass.js";
+import { Mat4, Vec3 } from "../lib/TSM.js";
 
 /**
  * Might be useful for designing any animation GUI
@@ -27,7 +25,7 @@ export class GUI implements IGUI {
   private static readonly rollSpeed: number = 0.1;
   private static readonly panSpeed: number = 0.1;
 
-  private camera: Camera;
+  private camera!: Camera;
   private prevX: number;
   private prevY: number;
   private dragging: boolean;
@@ -37,10 +35,10 @@ export class GUI implements IGUI {
 
   private animation: PathTracer;
   
-  private Adown: boolean;
-  private Wdown: boolean;
-  private Sdown: boolean;
-  private Ddown: boolean;
+  private Adown: boolean = false;
+  private Wdown: boolean = false;
+  private Sdown: boolean = false;
+  private Ddown: boolean = false;
 
   /**
    *

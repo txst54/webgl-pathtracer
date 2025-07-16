@@ -1,5 +1,6 @@
 import {RenderPass} from "../../lib/webglutils/RenderPass";
 import {PathTracer} from "../App";
+import AnimationManager from "../../animation/AnimationManager";
 
 export interface TextureConfig {
     count: number;
@@ -12,11 +13,14 @@ export abstract class BaseRenderer {
     protected canvas: HTMLCanvasElement;
     protected frameBuffer: WebGLFramebuffer | null = null;
     protected textureConfig: TextureConfig | null = null;
+    protected sceneTextureConfig: TextureConfig | null = null;
     protected renderPasses: { [key: string]: RenderPass } = {};
+    protected animationManager: AnimationManager;
 
     constructor(gl: WebGL2RenderingContext, canvas: HTMLCanvasElement, pathTracer: PathTracer) {
         this.gl = gl;
         this.canvas = canvas;
+        this.animationManager = pathTracer.getAnimationManager();
         this.initialize(pathTracer);
     }
 
@@ -97,5 +101,11 @@ export abstract class BaseRenderer {
         renderPass.addUniform("uProjMatPrev", (gl, loc) => {
             gl.uniformMatrix4fv(loc, false, pathTracer.getGUI().getCamera().getProjMatrixPrevious());
         });
+    }
+
+    protected addAnimationUniforms(renderPass: RenderPass): void {
+        const scene = this.animationManager.getScene();
+        if (!scene || scene.meshes.length === 0) return;
+        this.sceneTextureConfig = this.createTextureConfig(1, this.gl.FLOAT); // 1 for vertices, 1 for normals,
     }
 }

@@ -1,14 +1,15 @@
 import { Debugger } from "../lib/webglutils/Debugging.js";
-import { CanvasAnimation, WebGLUtilities } from "../lib/webglutils/CanvasAnimation.js";
+import { CanvasAnimation } from "../lib/webglutils/CanvasAnimation.js";
 import { GUI } from "./Gui.js";
 import { FPSCounter } from "./Menu.js";
-import { Mat4, Vec4, Vec3 } from "../lib/TSM.js";
+import { Vec4, Vec3 } from "../lib/TSM.js";
 import MISRenderer from "./renderpasses/MISRenderer";
 import { BaseRenderer } from "./renderpasses/BaseRenderer";
 import RISRenderer from "./renderpasses/RISRenderer";
 import ReSTIRDISpatialRenderer from "./renderpasses/ReSTIRDISpatialRenderer";
 import ReSTIRDIRenderer from "./renderpasses/ReSTIRDIRenderer";
 import ReSTIRGIRenderer from "./renderpasses/ReSTIRGIRenderer";
+import AnimationManager from "../animation/AnimationManager";
 
 // Rendering modes
 enum RenderMode {
@@ -31,21 +32,22 @@ export class PathTracer extends CanvasAnimation {
   private static readonly MOVEMENT_SPEED = 0.2;
 
   // Core components
-  private gui: GUI;
-  private canvas2d: HTMLCanvasElement;
-  private fpsCounter: FPSCounter;
+  private gui!: GUI;
+  private canvas2d!: HTMLCanvasElement;
+  private fpsCounter!: FPSCounter;
+  private animationManager!: AnimationManager;
 
   // Rendering state
   private currentMode = RenderMode.MIS;
   private sampleCount = 0;
-  private playerPosition: Vec3;
-  private cachedCameraRays: CameraRays;
+  private playerPosition!: Vec3;
+  private cachedCameraRays!: CameraRays;
 
   // Timing
   private startTime = new Date();
 
   // Renderers
-  private renderers: { [key in RenderMode]: BaseRenderer };
+  private renderers!: { [key in RenderMode]: BaseRenderer };
 
   // Scene properties
   private lightPosition = new Vec4([-1000, 1000, -1000, 1]);
@@ -57,6 +59,7 @@ export class PathTracer extends CanvasAnimation {
     this.initializeCanvas(canvas);
     this.setupWebGL();
     this.initializeGUI();
+    this.initializeAnimationManager();
     this.initializeFPSCounter();
     this.createRenderers();
     this.updateCameraRays();
@@ -72,6 +75,11 @@ export class PathTracer extends CanvasAnimation {
     canvas.height = canvas.clientHeight;
 
     console.log("Canvas Resolution:", this.canvas2d.width, "X", this.canvas2d.height);
+  }
+
+  private initializeAnimationManager(): void {
+    this.animationManager = new AnimationManager(this.gui);
+    this.animationManager.setScene("assets/robot.dae");
   }
 
   private setupWebGL(): void {
@@ -186,6 +194,10 @@ export class PathTracer extends CanvasAnimation {
 
   public getTextureWeight(): number {
     return this.sampleCount / (this.sampleCount + 1);
+  }
+
+  public getAnimationManager(): AnimationManager {
+    return this.animationManager;
   }
 }
 
