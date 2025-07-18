@@ -9,6 +9,12 @@ vec2 intersectCube(vec3 origin, vec3 ray, vec3 cubeMin, vec3 cubeMax) {
     return vec2(tNear, tFar);
 }
 
+bool intersectBoundingBox(vec3 origin, vec3 ray, vec3 cubeMin, vec3 cubeMax) {
+    vec2 t = intersectCube(origin, ray, cubeMin, cubeMax);
+    // near < far
+    return t.x < t.y;
+}
+
 vec3 normalForCube(vec3 hit, vec3 cubeMin, vec3 cubeMax) {
     if (hit.x < cubeMin.x + epsilon)
     return vec3(-1.0, 0.0, 0.0);

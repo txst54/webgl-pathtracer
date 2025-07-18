@@ -11,9 +11,9 @@ export interface TextureConfig {
 export abstract class BaseRenderer {
     protected gl: WebGL2RenderingContext;
     protected canvas: HTMLCanvasElement;
-    protected frameBuffer: WebGLFramebuffer | null = null;
-    protected textureConfig: TextureConfig | null = null;
-    protected sceneTextureConfig: TextureConfig | null = null;
+    protected frameBuffer!: WebGLFramebuffer;
+    protected textureConfig!: TextureConfig;
+    protected sceneTextureConfig!: TextureConfig;
     protected renderPasses: { [key: string]: RenderPass } = {};
     protected animationManager: AnimationManager;
 
@@ -103,9 +103,106 @@ export abstract class BaseRenderer {
         });
     }
 
-    protected addAnimationUniforms(renderPass: RenderPass): void {
+    protected writeTexture<T extends Float32Array | Uint8Array | Uint16Array | Uint32Array>(
+      gl: WebGL2RenderingContext | WebGLRenderingContext,
+      width: number,
+      height: number,
+      data: T,
+      options: {
+          internalFormat: number;
+          format: number;
+          type: number;
+      }
+    ): WebGLTexture {
+        const texture = gl.createTexture();
+        if (!texture) throw new Error("Failed to create texture");
+
+        const texelCount = width * height;
+        const channels = 4; // assuming RGBA
+        const expectedLength = texelCount * channels;
+
+        let paddedData: T;
+        if (data.length < expectedLength) {
+            const TypedArrayConstructor = (data.constructor as new (length: number) => T);
+            paddedData = new TypedArrayConstructor(expectedLength);
+            paddedData.set(data);
+        } else if (data.length > expectedLength) {
+            throw new Error(`Data length ${data.length} exceeds expected length ${expectedLength}`);
+        } else {
+            paddedData = data;
+        }
+
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+
+        gl.texImage2D(
+          gl.TEXTURE_2D,
+          0,
+          options.internalFormat,
+          width,
+          height,
+          0,
+          options.format,
+          options.type,
+          paddedData
+        );
+
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+        gl.bindTexture(gl.TEXTURE_2D, null);
+        return texture;
+    }
+
+
+
+    protected addAnimationUniforms(renderPass: RenderPass): number {
         const scene = this.animationManager.getScene();
-        if (!scene || scene.meshes.length === 0) return;
-        this.sceneTextureConfig = this.createTextureConfig(1, this.gl.FLOAT); // 1 for vertices, 1 for normals,
+        if (!scene || scene.meshes.length === 0) return 0;
+        // 1 for vertices, 1 for normals, 1 for child indices, 1 for mesh indices, 1 for bounding box
+        this.sceneTextureConfig = this.createTextureConfig(5, this.gl.FLOAT);
+        renderPass.addUniform("uSceneRootIdx", (gl, loc) => {
+            gl.uniform1i(loc, this.animationManager.getRootIdx());
+        });
+        const DEFAULT_TEXTURE_SIZE = 1024;
+        let i = 0;
+        let FLOAT_OPTIONS = {internalFormat: this.gl.RGBA32F, format: this.gl.RGBA, type: this.gl.FLOAT};
+        renderPass.addUniform(`uSceneAllVertices`, (gl, loc) => {
+            const texture = this.writeTexture<Float32Array>(this.gl, DEFAULT_TEXTURE_SIZE, DEFAULT_TEXTURE_SIZE,
+              this.animationManager.getAllVertices(), FLOAT_OPTIONS);
+            gl.activeTexture(gl.TEXTURE0 + i);
+            gl.bindTexture(gl.TEXTURE_2D, texture);
+            gl.uniform1i(loc, i++);
+        });
+        renderPass.addUniform(`uSceneAllNormals`, (gl, loc) => {
+            const texture = this.writeTexture<Float32Array>(this.gl, DEFAULT_TEXTURE_SIZE, DEFAULT_TEXTURE_SIZE,
+              this.animationManager.getAllNormals(), FLOAT_OPTIONS);
+            gl.activeTexture(gl.TEXTURE0 + i);
+            gl.bindTexture(gl.TEXTURE_2D, texture);
+            gl.uniform1i(loc, i++);
+        });
+        renderPass.addUniform(`uSceneBoundingBoxes`, (gl, loc) => {
+            const texture = this.writeTexture<Float32Array>(this.gl, DEFAULT_TEXTURE_SIZE, DEFAULT_TEXTURE_SIZE,
+              this.animationManager.getBoundingBoxes(), FLOAT_OPTIONS);
+            gl.activeTexture(gl.TEXTURE0 + i);
+            gl.bindTexture(gl.TEXTURE_2D, texture);
+            gl.uniform1i(loc, i++);
+        });
+        renderPass.addUniform(`uSceneChildIndices`, (gl, loc) => {
+            const texture = this.writeTexture<Uint32Array>(this.gl, DEFAULT_TEXTURE_SIZE, DEFAULT_TEXTURE_SIZE,
+              this.animationManager.getChildIndices(), {internalFormat: this.gl.RGBA32UI, format: this.gl.RGBA_INTEGER, type: this.gl.UNSIGNED_INT});
+            gl.activeTexture(gl.TEXTURE0 + i);
+            gl.bindTexture(gl.TEXTURE_2D, texture);
+            gl.uniform1i(loc, i++);
+        });
+        renderPass.addUniform(`uSceneMeshIndices`, (gl, loc) => {
+            const texture = this.writeTexture<Uint32Array>(this.gl, DEFAULT_TEXTURE_SIZE, DEFAULT_TEXTURE_SIZE,
+              this.animationManager.getMeshIndices(), {internalFormat: this.gl.RGBA32UI, format: this.gl.RGBA_INTEGER, type: this.gl.UNSIGNED_INT});
+            gl.activeTexture(gl.TEXTURE0 + i);
+            gl.bindTexture(gl.TEXTURE_2D, texture);
+            gl.uniform1i(loc, i++);
+        });
+        return i;
     }
 }

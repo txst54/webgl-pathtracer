@@ -134,11 +134,10 @@ export default class BVH {
     return sortedNodes[0];
   }
 
-  private indexBVH(): IndexedBVHNode[] {
+  private indexBVH(): { rootIdx: number, allBVHNodes: IndexedBVHNode[] } {
     const allBVHNodes: IndexedBVHNode[] = [];
     const traverse = (node: BVHNode | null): number => {
       if (!node) return -1;
-      const index = allBVHNodes.length;
       const indexedNode: IndexedBVHNode = {
         left: traverse(node.left),
         right: traverse(node.right),
@@ -146,15 +145,19 @@ export default class BVH {
         meshIndex: node.meshIndex,
         faceIndex: node.faceIndex
       }
+      const index = allBVHNodes.length;
       allBVHNodes.push(indexedNode);
       return index;
     };
-    traverse(this.root);
-    return allBVHNodes;
+    const rootIdx = traverse(this.root);
+    return {rootIdx, allBVHNodes};
   }
 
-  public getFlattenedBVH(): { childIndices: Uint32Array, meshIndices: Uint32Array, boundingBoxes: Float32Array, count: number } {
-    const allBVHNodes = this.indexBVH();
+  public getFlattenedBVH(): {
+    childIndices: Uint32Array, meshIndices: Uint32Array, boundingBoxes: Float32Array,
+    rootIdx: number
+  } {
+    const { rootIdx, allBVHNodes } = this.indexBVH();
     const childIndices = new Uint32Array(allBVHNodes.length * 2);
     const meshIndices = new Uint32Array(allBVHNodes.length * 2);
     const boundingBoxes = new Float32Array(allBVHNodes.length * 6);
@@ -165,6 +168,7 @@ export default class BVH {
       meshIndices.set(flatNode.meshIndices, i * 2);
       boundingBoxes.set(flatNode.boundingBoxes, i * 6);
     }
-    return {childIndices, meshIndices, boundingBoxes, count: allBVHNodes.length};
+
+    return {childIndices, meshIndices, boundingBoxes, rootIdx};
   }
 }

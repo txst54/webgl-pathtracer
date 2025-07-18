@@ -9,11 +9,11 @@ import {
 import {PathTracer} from "../App";
 
 export default class ReSTIRGIRenderer extends BaseRenderer {
-    private spatialTemporalConfig: TextureConfig;
+    private spatialTemporalConfig!: TextureConfig;
     private pingpong: number = 0;
     private static readonly RESERVOIR_TEXTURES = 4;
     private static readonly PING_PONG_OFFSET = ReSTIRGIRenderer.RESERVOIR_TEXTURES + 2; // 4 for reservoirs + 1 for depthmap
-    private pathTracer: PathTracer;
+    private pathTracer!: PathTracer;
 
     protected initialize(pathTracer: PathTracer): void {
         const type = this.gl.getExtension('OES_texture_float') ? this.gl.FLOAT : this.gl.UNSIGNED_BYTE;

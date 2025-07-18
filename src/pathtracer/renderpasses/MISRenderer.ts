@@ -18,10 +18,11 @@ export default class MISRenderer extends BaseRenderer {
 
     private setupPathTracerPass(pathTracer: PathTracer): void {
         const numIndices = this.setupRayRenderPass(this.renderPasses.pathTracer, pathTracer);
+        const textureOffset = this.addAnimationUniforms(this.renderPasses.pathTracer);
         this.renderPasses.pathTracer.addUniform("uTexture", (gl, loc) => {
-            gl.activeTexture(gl.TEXTURE0);
+            gl.activeTexture(gl.TEXTURE0 + textureOffset);
             gl.bindTexture(gl.TEXTURE_2D, this.textureConfig.textures[this.pingpong]);
-            gl.uniform1i(loc, 0);
+            gl.uniform1i(loc, textureOffset);
         });
         this.renderPasses.pathTracer.setDrawData(this.gl.TRIANGLES, numIndices, this.gl.UNSIGNED_SHORT, 0);
         this.renderPasses.pathTracer.setup();

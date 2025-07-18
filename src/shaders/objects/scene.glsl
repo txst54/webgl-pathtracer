@@ -18,11 +18,18 @@ Isect intersect(vec3 ray, vec3 origin) {
     float tSphere = intersectSphere(origin, ray, sphereCenter, sphereRadius);
     float tLight = intersectSphere(origin, ray, light, lightSize);
     vec2 tWall = intersectCube(origin, ray, wallCubeMin, wallCubeMax);
+    #ifdef USING_BVH
+    float tObj = intersectTrimesh(origin, ray, uSceneAllVertices, uSceneAllNormals, uSceneBoundingBoxes,
+        uSceneChildIndices, uSceneMeshIndices, uSceneRootIdx);
+    #endif
     float t = infinity;
     if (tRoom.x < tRoom.y) t = tRoom.y;
     if (tWall.x < tWall.y && tWall.x > epsilon && tWall.x < t) t = tWall.x;
     if (tSphere < t) t = tSphere;
     if (tLight < t) t = tLight;
+    #ifdef USING_BVH
+    if (tObj < t) t = tObj;
+    #endif
 
     isect.t = t;
     isect.albedo = WHITECOLOR;

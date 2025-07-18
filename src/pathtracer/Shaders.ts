@@ -243,8 +243,15 @@ uniform float uTime;
 in vec3 initialRay;
 
 uniform sampler2D uTexture;
-uniform float uTextureWeight;
-uniform vec2 uRes;
+uniform vec2 uRes;// float
+uniform sampler2D uSceneAllVertices;
+uniform sampler2D uSceneAllNormals;
+uniform sampler2D uSceneBoundingBoxes;
+// int
+uniform sampler2D uSceneChildIndices;
+uniform sampler2D uSceneMeshIndices;
+uniform int uSceneNodeCount;
+uniform float uTextureWeight;
 
 #define EYE_PATH_LENGTH 16vec3 roomCubeMin = vec3(-10.0, -10.0, -10.0);
 vec3 roomCubeMax = vec3(10.0, 10.0, 10.0);

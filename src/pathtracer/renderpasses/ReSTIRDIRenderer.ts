@@ -5,11 +5,11 @@ import {pathTracerVSText, ReSTIR_spatialPassFSText, ReSTIR_temporalPassFSText} f
 import {PathTracer} from "../App";
 
 export default class ReSTIRDIRenderer extends BaseRenderer {
-    private spatialTemporalConfig: TextureConfig;
+    private spatialTemporalConfig!: TextureConfig;
     private pingpong: number = 0;
     private static readonly RESERVOIR_TEXTURES = 2;
     private static readonly PING_PONG_OFFSET = ReSTIRDIRenderer.RESERVOIR_TEXTURES + 2; // 2 for reservoirs + 1 for depthmap
-    private pathTracer: PathTracer;
+    private pathTracer!: PathTracer;
 
     protected initialize(pathTracer: PathTracer): void {
         const type = this.gl.getExtension('OES_texture_float') ? this.gl.FLOAT : this.gl.UNSIGNED_BYTE;

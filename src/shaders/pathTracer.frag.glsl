@@ -9,6 +9,8 @@ uniform sampler2D uTexture;
 uniform float uTextureWeight;
 uniform vec2 uRes;
 
+// use_macro{SCENE_HEADERS}
+
 #define EYE_PATH_LENGTH 16
 
 // use_macro{CONSTANTS}
