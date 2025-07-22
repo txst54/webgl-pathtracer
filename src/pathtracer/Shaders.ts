@@ -28,7 +28,8 @@ vec3 ReSTIR_lightEmission = vec3(0.5); // Light intensity/color
 #define LIGHTCOLOR vec3(16.86, 10.76, 8.2)*0.15
 #define WHITECOLOR vec3(.7295, .7355, .729)*0.7
 #define GREENCOLOR vec3(.117, .5125, .115)*0.7
-#define REDCOLOR vec3(.711, .0555, .062)*0.7float random(vec3 scale, float seed) {
+#define REDCOLOR vec3(.711, .0555, .062)*0.7
+#define INFINITY 10000.0;float random(vec3 scale, float seed) {
     return fract(sin(dot(gl_FragCoord.xyz + seed, scale)) * 43758.5453 + seed);
 }
 
@@ -72,6 +73,12 @@ vec2 uniformlyRandomDisk(float seed, int radius) {
     float tNear = max(max(t1.x, t1.y), t1.z);
     float tFar = min(min(t2.x, t2.y), t2.z);
     return vec2(tNear, tFar);
+}
+
+bool intersectBoundingBox(vec3 origin, vec3 ray, vec3 cubeMin, vec3 cubeMax) {
+    vec2 t = intersectCube(origin, ray, cubeMin, cubeMax);
+    // near < far
+    return t.x < t.y;
 }
 
 vec3 normalForCube(vec3 hit, vec3 cubeMin, vec3 cubeMax) {
@@ -119,11 +126,18 @@ Isect intersect(vec3 ray, vec3 origin) {
     float tSphere = intersectSphere(origin, ray, sphereCenter, sphereRadius);
     float tLight = intersectSphere(origin, ray, light, lightSize);
     vec2 tWall = intersectCube(origin, ray, wallCubeMin, wallCubeMax);
+    #ifdef USING_BVH
+    float tObj = intersectTrimesh(origin, ray, uSceneAllVertices, uSceneAllNormals, uSceneBoundingBoxes,
+        uSceneChildIndices, uSceneMeshIndices, uSceneRootIdx);
+    #endif
     float t = infinity;
     if (tRoom.x < tRoom.y) t = tRoom.y;
     if (tWall.x < tWall.y && tWall.x > epsilon && tWall.x < t) t = tWall.x;
     if (tSphere < t) t = tSphere;
     if (tLight < t) t = tLight;
+    #ifdef USING_BVH
+    if (tObj < t) t = tObj;
+    #endif
 
     isect.t = t;
     isect.albedo = WHITECOLOR;
@@ -146,6 +160,8 @@ Isect intersect(vec3 ray, vec3 origin) {
     } else if (t == tLight) {
         isect.normal = normalForSphere(isect.position, light, lightSize);
         isect.isLight = true;
+    } else {
+        isect.normal = vec3(0.0, 0.0, 1.0);
     }
     return isect;
 }vec3 cosineWeightedDirection(float seed, vec3 normal) {
@@ -243,6 +259,7 @@ uniform float uTime;
 in vec3 initialRay;
 
 uniform sampler2D uTexture;
+uniform float uTextureWeight;
 uniform vec2 uRes;// float
 uniform sampler2D uSceneAllVertices;
 uniform sampler2D uSceneAllNormals;
@@ -250,8 +267,11 @@ uniform sampler2D uSceneBoundingBoxes;
 // int
 uniform sampler2D uSceneChildIndices;
 uniform sampler2D uSceneMeshIndices;
-uniform int uSceneNodeCount;
-uniform float uTextureWeight;
+uniform int uSceneRootIdx;
+
+#define USING_BVH true
+#define BVH_TEXTURE_SIZE 1024
+#define BVH_QUEUE_SIZE BVH_TEXTURE_SIZE * BVH_TEXTURE_SIZE
 
 #define EYE_PATH_LENGTH 16vec3 roomCubeMin = vec3(-10.0, -10.0, -10.0);
 vec3 roomCubeMax = vec3(10.0, 10.0, 10.0);
@@ -270,7 +290,8 @@ vec3 ReSTIR_lightEmission = vec3(0.5); // Light intensity/color
 #define LIGHTCOLOR vec3(16.86, 10.76, 8.2)*0.15
 #define WHITECOLOR vec3(.7295, .7355, .729)*0.7
 #define GREENCOLOR vec3(.117, .5125, .115)*0.7
-#define REDCOLOR vec3(.711, .0555, .062)*0.7float random(vec3 scale, float seed) {
+#define REDCOLOR vec3(.711, .0555, .062)*0.7
+#define INFINITY 10000.0;float random(vec3 scale, float seed) {
     return fract(sin(dot(gl_FragCoord.xyz + seed, scale)) * 43758.5453 + seed);
 }
 
@@ -316,6 +337,12 @@ vec2 uniformlyRandomDisk(float seed, int radius) {
     return vec2(tNear, tFar);
 }
 
+bool intersectBoundingBox(vec3 origin, vec3 ray, vec3 cubeMin, vec3 cubeMax) {
+    vec2 t = intersectCube(origin, ray, cubeMin, cubeMax);
+    // near < far
+    return t.x < t.y;
+}
+
 vec3 normalForCube(vec3 hit, vec3 cubeMin, vec3 cubeMax) {
     if (hit.x < cubeMin.x + epsilon)
     return vec3(-1.0, 0.0, 0.0);
@@ -329,6 +356,121 @@ vec3 normalForCube(vec3 hit, vec3 cubeMin, vec3 cubeMax) {
     return vec3(0.0, 0.0, -1.0);
     else
     return vec3(0.0, 0.0, 1.0);
+}
+struct BoundingBox {
+    vec3 min;
+    vec3 max;
+};
+
+bool rayIntersectTriangle(vec3 rayOrigin, vec3 rayDir, vec3 v0, vec3 v1, vec3 v2, out float t, out float u, out float v) {
+    const float EPSILON = 1e-5;
+
+    vec3 edge1 = v1 - v0;
+    vec3 edge2 = v2 - v0;
+
+    vec3 h = cross(rayDir, edge2);
+    float a = dot(edge1, h);
+
+    if (abs(a) < EPSILON) {
+        return false; // Ray is parallel to triangle
+    }
+
+    float f = 1.0 / a;
+    vec3 s = rayOrigin - v0;
+    u = f * dot(s, h);
+    if (u < 0.0 || u > 1.0) {
+        return false;
+    }
+
+    vec3 q = cross(s, edge1);
+    v = f * dot(rayDir, q);
+    if (v < 0.0 || u + v > 1.0) {
+        return false;
+    }
+
+    t = f * dot(edge2, q);
+    return t > EPSILON; // Only return true if intersection is in front of ray origin
+}
+
+vec3 getTextureFloatVector(sampler2D sceneTexture, int i) {
+    int expanded_idx = i * 3;
+    vec3 vector_out;
+    for (int j = 0; j < 3; j++) {
+        int curr_idx = int(expanded_idx + j);
+        int texture_idx = int(curr_idx / 4);
+        int vector_idx = int(curr_idx % 4);
+        int LOD = 0;
+        vec4 vector = texelFetch(sceneTexture,
+        ivec2(texture_idx % BVH_TEXTURE_SIZE, texture_idx / BVH_TEXTURE_SIZE), LOD);
+        vector_out[j] = vector[vector_idx];
+    }
+    return vector_out;
+}
+
+BoundingBox getTextureBBox(sampler2D sceneBoundingBoxes, int i) {
+    int expanded_idx = i * 2; // 2 vec3
+    BoundingBox bbox_out;
+    bbox_out.min = getTextureFloatVector(sceneBoundingBoxes, expanded_idx);
+    bbox_out.max = getTextureFloatVector(sceneBoundingBoxes, expanded_idx+1);
+    return bbox_out;
+}
+
+vec2 getTextureIndices(sampler2D sceneIndices, int i) {
+    int expanded_idx = i * 2;
+    vec2 indices_out;
+    int texture_idx = expanded_idx / 4;
+    int LOD = 0;
+    vec4 vector = texelFetch(sceneIndices, ivec2(texture_idx % BVH_TEXTURE_SIZE, texture_idx / BVH_TEXTURE_SIZE), LOD);
+    if (expanded_idx % 4 == 0) {
+        indices_out = vector.rg;
+    } else {
+        indices_out = vector.ba;
+    }
+    return indices_out;
+}
+
+// BVH Accelerated Intersection
+float intersectTrimesh(vec3 origin, vec3 ray, sampler2D sceneAllVertices, sampler2D sceneAllNormals,
+sampler2D sceneBoundingBoxes, sampler2D sceneChildIndices, sampler2D sceneMeshIndices, int sceneRootIdx) {
+    int queue[1024];
+    int head = 0;
+    int tail = 0;
+    queue[tail++] = sceneRootIdx;
+    while (head < tail) {
+        int top_idx = queue[head];
+        head++;
+        BoundingBox bbox = getTextureBBox(sceneBoundingBoxes, top_idx);
+        if(!intersectBoundingBox(origin, ray, bbox.min, bbox.max)) {
+            continue;
+        }
+        vec2 child_indices = getTextureIndices(sceneChildIndices, top_idx);
+        if (int(child_indices.x) == -1 && int(child_indices.y) == -1) {
+            // leaf node, check for triangular intersection
+            vec2 mesh_indices = getTextureIndices(sceneMeshIndices, top_idx);
+            // TODO check intersection of face
+            int mesh_idx = int(mesh_indices.x);
+            int face_idx = int(mesh_indices.y);
+            // dont do anything with mesh_idx for now
+            vec3 v0 = getTextureFloatVector(sceneAllVertices, face_idx * 3);
+            vec3 v1 = getTextureFloatVector(sceneAllVertices, face_idx * 3 + 1);
+            vec3 v2 = getTextureFloatVector(sceneAllVertices, face_idx * 3 + 2);
+            vec3 n = getTextureFloatVector(sceneAllNormals, face_idx * 3);
+            float t, u, v;
+            if (rayIntersectTriangle(origin, ray, v0, v1, v2, t, u, v)) {
+                // intersection found
+                vec3 hit_point = origin + t * ray;
+                vec3 normal = normalize(n);
+                return t;
+            }
+        }
+        if (int(child_indices.x) != -1) {
+            queue[tail++] = int(child_indices.x);
+        }
+        if (int(child_indices.y) != -1) {
+            queue[tail++] = int(child_indices.y);
+        }
+    }
+    return INFINITY;
 }float intersectSphere(vec3 origin, vec3 ray, vec3 sphereCenter, float sphereRadius) {
     vec3 toSphere = origin - sphereCenter;
     float a = dot(ray, ray);
@@ -361,11 +503,18 @@ Isect intersect(vec3 ray, vec3 origin) {
     float tSphere = intersectSphere(origin, ray, sphereCenter, sphereRadius);
     float tLight = intersectSphere(origin, ray, light, lightSize);
     vec2 tWall = intersectCube(origin, ray, wallCubeMin, wallCubeMax);
+    #ifdef USING_BVH
+    float tObj = intersectTrimesh(origin, ray, uSceneAllVertices, uSceneAllNormals, uSceneBoundingBoxes,
+        uSceneChildIndices, uSceneMeshIndices, uSceneRootIdx);
+    #endif
     float t = infinity;
     if (tRoom.x < tRoom.y) t = tRoom.y;
     if (tWall.x < tWall.y && tWall.x > epsilon && tWall.x < t) t = tWall.x;
     if (tSphere < t) t = tSphere;
     if (tLight < t) t = tLight;
+    #ifdef USING_BVH
+    if (tObj < t) t = tObj;
+    #endif
 
     isect.t = t;
     isect.albedo = WHITECOLOR;
@@ -388,6 +537,8 @@ Isect intersect(vec3 ray, vec3 origin) {
     } else if (t == tLight) {
         isect.normal = normalForSphere(isect.position, light, lightSize);
         isect.isLight = true;
+    } else {
+        isect.normal = vec3(0.0, 0.0, 1.0);
     }
     return isect;
 }vec3 cosineWeightedDirection(float seed, vec3 normal) {
@@ -594,7 +745,8 @@ vec3 ReSTIR_lightEmission = vec3(0.5); // Light intensity/color
 #define LIGHTCOLOR vec3(16.86, 10.76, 8.2)*0.15
 #define WHITECOLOR vec3(.7295, .7355, .729)*0.7
 #define GREENCOLOR vec3(.117, .5125, .115)*0.7
-#define REDCOLOR vec3(.711, .0555, .062)*0.7float random(vec3 scale, float seed) {
+#define REDCOLOR vec3(.711, .0555, .062)*0.7
+#define INFINITY 10000.0;float random(vec3 scale, float seed) {
     return fract(sin(dot(gl_FragCoord.xyz + seed, scale)) * 43758.5453 + seed);
 }
 
@@ -655,6 +807,12 @@ vec3 normalForSphere(vec3 hit, vec3 sphereCenter, float sphereRadius) {
     return vec2(tNear, tFar);
 }
 
+bool intersectBoundingBox(vec3 origin, vec3 ray, vec3 cubeMin, vec3 cubeMax) {
+    vec2 t = intersectCube(origin, ray, cubeMin, cubeMax);
+    // near < far
+    return t.x < t.y;
+}
+
 vec3 normalForCube(vec3 hit, vec3 cubeMin, vec3 cubeMax) {
     if (hit.x < cubeMin.x + epsilon)
     return vec3(-1.0, 0.0, 0.0);
@@ -685,11 +843,18 @@ Isect intersect(vec3 ray, vec3 origin) {
     float tSphere = intersectSphere(origin, ray, sphereCenter, sphereRadius);
     float tLight = intersectSphere(origin, ray, light, lightSize);
     vec2 tWall = intersectCube(origin, ray, wallCubeMin, wallCubeMax);
+    #ifdef USING_BVH
+    float tObj = intersectTrimesh(origin, ray, uSceneAllVertices, uSceneAllNormals, uSceneBoundingBoxes,
+        uSceneChildIndices, uSceneMeshIndices, uSceneRootIdx);
+    #endif
     float t = infinity;
     if (tRoom.x < tRoom.y) t = tRoom.y;
     if (tWall.x < tWall.y && tWall.x > epsilon && tWall.x < t) t = tWall.x;
     if (tSphere < t) t = tSphere;
     if (tLight < t) t = tLight;
+    #ifdef USING_BVH
+    if (tObj < t) t = tObj;
+    #endif
 
     isect.t = t;
     isect.albedo = WHITECOLOR;
@@ -712,6 +877,8 @@ Isect intersect(vec3 ray, vec3 origin) {
     } else if (t == tLight) {
         isect.normal = normalForSphere(isect.position, light, lightSize);
         isect.isLight = true;
+    } else {
+        isect.normal = vec3(0.0, 0.0, 1.0);
     }
     return isect;
 }vec3 cosineWeightedDirection(float seed, vec3 normal) {
@@ -1153,7 +1320,8 @@ vec3 ReSTIR_lightEmission = vec3(0.5); // Light intensity/color
 #define LIGHTCOLOR vec3(16.86, 10.76, 8.2)*0.15
 #define WHITECOLOR vec3(.7295, .7355, .729)*0.7
 #define GREENCOLOR vec3(.117, .5125, .115)*0.7
-#define REDCOLOR vec3(.711, .0555, .062)*0.7float intersectSphere(vec3 origin, vec3 ray, vec3 sphereCenter, float sphereRadius) {
+#define REDCOLOR vec3(.711, .0555, .062)*0.7
+#define INFINITY 10000.0;float intersectSphere(vec3 origin, vec3 ray, vec3 sphereCenter, float sphereRadius) {
     vec3 toSphere = origin - sphereCenter;
     float a = dot(ray, ray);
     float b = 2.0 * dot(toSphere, ray);
@@ -1176,6 +1344,12 @@ vec3 normalForSphere(vec3 hit, vec3 sphereCenter, float sphereRadius) {
     float tNear = max(max(t1.x, t1.y), t1.z);
     float tFar = min(min(t2.x, t2.y), t2.z);
     return vec2(tNear, tFar);
+}
+
+bool intersectBoundingBox(vec3 origin, vec3 ray, vec3 cubeMin, vec3 cubeMax) {
+    vec2 t = intersectCube(origin, ray, cubeMin, cubeMax);
+    // near < far
+    return t.x < t.y;
 }
 
 vec3 normalForCube(vec3 hit, vec3 cubeMin, vec3 cubeMax) {
@@ -1208,11 +1382,18 @@ Isect intersect(vec3 ray, vec3 origin) {
     float tSphere = intersectSphere(origin, ray, sphereCenter, sphereRadius);
     float tLight = intersectSphere(origin, ray, light, lightSize);
     vec2 tWall = intersectCube(origin, ray, wallCubeMin, wallCubeMax);
+    #ifdef USING_BVH
+    float tObj = intersectTrimesh(origin, ray, uSceneAllVertices, uSceneAllNormals, uSceneBoundingBoxes,
+        uSceneChildIndices, uSceneMeshIndices, uSceneRootIdx);
+    #endif
     float t = infinity;
     if (tRoom.x < tRoom.y) t = tRoom.y;
     if (tWall.x < tWall.y && tWall.x > epsilon && tWall.x < t) t = tWall.x;
     if (tSphere < t) t = tSphere;
     if (tLight < t) t = tLight;
+    #ifdef USING_BVH
+    if (tObj < t) t = tObj;
+    #endif
 
     isect.t = t;
     isect.albedo = WHITECOLOR;
@@ -1235,6 +1416,8 @@ Isect intersect(vec3 ray, vec3 origin) {
     } else if (t == tLight) {
         isect.normal = normalForSphere(isect.position, light, lightSize);
         isect.isLight = true;
+    } else {
+        isect.normal = vec3(0.0, 0.0, 1.0);
     }
     return isect;
 }
@@ -1801,7 +1984,8 @@ vec3 ReSTIR_lightEmission = vec3(0.5); // Light intensity/color
 #define LIGHTCOLOR vec3(16.86, 10.76, 8.2)*0.15
 #define WHITECOLOR vec3(.7295, .7355, .729)*0.7
 #define GREENCOLOR vec3(.117, .5125, .115)*0.7
-#define REDCOLOR vec3(.711, .0555, .062)*0.7float random(vec3 scale, float seed) {
+#define REDCOLOR vec3(.711, .0555, .062)*0.7
+#define INFINITY 10000.0;float random(vec3 scale, float seed) {
     return fract(sin(dot(gl_FragCoord.xyz + seed, scale)) * 43758.5453 + seed);
 }
 
@@ -1845,6 +2029,12 @@ vec2 uniformlyRandomDisk(float seed, int radius) {
     float tNear = max(max(t1.x, t1.y), t1.z);
     float tFar = min(min(t2.x, t2.y), t2.z);
     return vec2(tNear, tFar);
+}
+
+bool intersectBoundingBox(vec3 origin, vec3 ray, vec3 cubeMin, vec3 cubeMax) {
+    vec2 t = intersectCube(origin, ray, cubeMin, cubeMax);
+    // near < far
+    return t.x < t.y;
 }
 
 vec3 normalForCube(vec3 hit, vec3 cubeMin, vec3 cubeMax) {
@@ -1892,11 +2082,18 @@ Isect intersect(vec3 ray, vec3 origin) {
     float tSphere = intersectSphere(origin, ray, sphereCenter, sphereRadius);
     float tLight = intersectSphere(origin, ray, light, lightSize);
     vec2 tWall = intersectCube(origin, ray, wallCubeMin, wallCubeMax);
+    #ifdef USING_BVH
+    float tObj = intersectTrimesh(origin, ray, uSceneAllVertices, uSceneAllNormals, uSceneBoundingBoxes,
+        uSceneChildIndices, uSceneMeshIndices, uSceneRootIdx);
+    #endif
     float t = infinity;
     if (tRoom.x < tRoom.y) t = tRoom.y;
     if (tWall.x < tWall.y && tWall.x > epsilon && tWall.x < t) t = tWall.x;
     if (tSphere < t) t = tSphere;
     if (tLight < t) t = tLight;
+    #ifdef USING_BVH
+    if (tObj < t) t = tObj;
+    #endif
 
     isect.t = t;
     isect.albedo = WHITECOLOR;
@@ -1919,6 +2116,8 @@ Isect intersect(vec3 ray, vec3 origin) {
     } else if (t == tLight) {
         isect.normal = normalForSphere(isect.position, light, lightSize);
         isect.isLight = true;
+    } else {
+        isect.normal = vec3(0.0, 0.0, 1.0);
     }
     return isect;
 }vec3 cosineWeightedDirection(float seed, vec3 normal) {
@@ -2139,7 +2338,8 @@ vec3 ReSTIR_lightEmission = vec3(0.5); // Light intensity/color
 #define LIGHTCOLOR vec3(16.86, 10.76, 8.2)*0.15
 #define WHITECOLOR vec3(.7295, .7355, .729)*0.7
 #define GREENCOLOR vec3(.117, .5125, .115)*0.7
-#define REDCOLOR vec3(.711, .0555, .062)*0.7float random(vec3 scale, float seed) {
+#define REDCOLOR vec3(.711, .0555, .062)*0.7
+#define INFINITY 10000.0;float random(vec3 scale, float seed) {
     return fract(sin(dot(gl_FragCoord.xyz + seed, scale)) * 43758.5453 + seed);
 }
 
@@ -2200,6 +2400,12 @@ vec3 normalForSphere(vec3 hit, vec3 sphereCenter, float sphereRadius) {
     return vec2(tNear, tFar);
 }
 
+bool intersectBoundingBox(vec3 origin, vec3 ray, vec3 cubeMin, vec3 cubeMax) {
+    vec2 t = intersectCube(origin, ray, cubeMin, cubeMax);
+    // near < far
+    return t.x < t.y;
+}
+
 vec3 normalForCube(vec3 hit, vec3 cubeMin, vec3 cubeMax) {
     if (hit.x < cubeMin.x + epsilon)
     return vec3(-1.0, 0.0, 0.0);
@@ -2230,11 +2436,18 @@ Isect intersect(vec3 ray, vec3 origin) {
     float tSphere = intersectSphere(origin, ray, sphereCenter, sphereRadius);
     float tLight = intersectSphere(origin, ray, light, lightSize);
     vec2 tWall = intersectCube(origin, ray, wallCubeMin, wallCubeMax);
+    #ifdef USING_BVH
+    float tObj = intersectTrimesh(origin, ray, uSceneAllVertices, uSceneAllNormals, uSceneBoundingBoxes,
+        uSceneChildIndices, uSceneMeshIndices, uSceneRootIdx);
+    #endif
     float t = infinity;
     if (tRoom.x < tRoom.y) t = tRoom.y;
     if (tWall.x < tWall.y && tWall.x > epsilon && tWall.x < t) t = tWall.x;
     if (tSphere < t) t = tSphere;
     if (tLight < t) t = tLight;
+    #ifdef USING_BVH
+    if (tObj < t) t = tObj;
+    #endif
 
     isect.t = t;
     isect.albedo = WHITECOLOR;
@@ -2257,6 +2470,8 @@ Isect intersect(vec3 ray, vec3 origin) {
     } else if (t == tLight) {
         isect.normal = normalForSphere(isect.position, light, lightSize);
         isect.isLight = true;
+    } else {
+        isect.normal = vec3(0.0, 0.0, 1.0);
     }
     return isect;
 }vec3 cosineWeightedDirection(float seed, vec3 normal) {
@@ -2644,7 +2859,8 @@ vec3 ReSTIR_lightEmission = vec3(0.5); // Light intensity/color
 #define LIGHTCOLOR vec3(16.86, 10.76, 8.2)*0.15
 #define WHITECOLOR vec3(.7295, .7355, .729)*0.7
 #define GREENCOLOR vec3(.117, .5125, .115)*0.7
-#define REDCOLOR vec3(.711, .0555, .062)*0.7float intersectSphere(vec3 origin, vec3 ray, vec3 sphereCenter, float sphereRadius) {
+#define REDCOLOR vec3(.711, .0555, .062)*0.7
+#define INFINITY 10000.0;float intersectSphere(vec3 origin, vec3 ray, vec3 sphereCenter, float sphereRadius) {
     vec3 toSphere = origin - sphereCenter;
     float a = dot(ray, ray);
     float b = 2.0 * dot(toSphere, ray);
@@ -2667,6 +2883,12 @@ vec3 normalForSphere(vec3 hit, vec3 sphereCenter, float sphereRadius) {
     float tNear = max(max(t1.x, t1.y), t1.z);
     float tFar = min(min(t2.x, t2.y), t2.z);
     return vec2(tNear, tFar);
+}
+
+bool intersectBoundingBox(vec3 origin, vec3 ray, vec3 cubeMin, vec3 cubeMax) {
+    vec2 t = intersectCube(origin, ray, cubeMin, cubeMax);
+    // near < far
+    return t.x < t.y;
 }
 
 vec3 normalForCube(vec3 hit, vec3 cubeMin, vec3 cubeMax) {
@@ -2699,11 +2921,18 @@ Isect intersect(vec3 ray, vec3 origin) {
     float tSphere = intersectSphere(origin, ray, sphereCenter, sphereRadius);
     float tLight = intersectSphere(origin, ray, light, lightSize);
     vec2 tWall = intersectCube(origin, ray, wallCubeMin, wallCubeMax);
+    #ifdef USING_BVH
+    float tObj = intersectTrimesh(origin, ray, uSceneAllVertices, uSceneAllNormals, uSceneBoundingBoxes,
+        uSceneChildIndices, uSceneMeshIndices, uSceneRootIdx);
+    #endif
     float t = infinity;
     if (tRoom.x < tRoom.y) t = tRoom.y;
     if (tWall.x < tWall.y && tWall.x > epsilon && tWall.x < t) t = tWall.x;
     if (tSphere < t) t = tSphere;
     if (tLight < t) t = tLight;
+    #ifdef USING_BVH
+    if (tObj < t) t = tObj;
+    #endif
 
     isect.t = t;
     isect.albedo = WHITECOLOR;
@@ -2726,6 +2955,8 @@ Isect intersect(vec3 ray, vec3 origin) {
     } else if (t == tLight) {
         isect.normal = normalForSphere(isect.position, light, lightSize);
         isect.isLight = true;
+    } else {
+        isect.normal = vec3(0.0, 0.0, 1.0);
     }
     return isect;
 }
@@ -3182,7 +3413,8 @@ vec3 ReSTIR_lightEmission = vec3(0.5); // Light intensity/color
 #define LIGHTCOLOR vec3(16.86, 10.76, 8.2)*0.15
 #define WHITECOLOR vec3(.7295, .7355, .729)*0.7
 #define GREENCOLOR vec3(.117, .5125, .115)*0.7
-#define REDCOLOR vec3(.711, .0555, .062)*0.7float random(vec3 scale, float seed) {
+#define REDCOLOR vec3(.711, .0555, .062)*0.7
+#define INFINITY 10000.0;float random(vec3 scale, float seed) {
     return fract(sin(dot(gl_FragCoord.xyz + seed, scale)) * 43758.5453 + seed);
 }
 
@@ -3226,6 +3458,12 @@ vec2 uniformlyRandomDisk(float seed, int radius) {
     float tNear = max(max(t1.x, t1.y), t1.z);
     float tFar = min(min(t2.x, t2.y), t2.z);
     return vec2(tNear, tFar);
+}
+
+bool intersectBoundingBox(vec3 origin, vec3 ray, vec3 cubeMin, vec3 cubeMax) {
+    vec2 t = intersectCube(origin, ray, cubeMin, cubeMax);
+    // near < far
+    return t.x < t.y;
 }
 
 vec3 normalForCube(vec3 hit, vec3 cubeMin, vec3 cubeMax) {
@@ -3273,11 +3511,18 @@ Isect intersect(vec3 ray, vec3 origin) {
     float tSphere = intersectSphere(origin, ray, sphereCenter, sphereRadius);
     float tLight = intersectSphere(origin, ray, light, lightSize);
     vec2 tWall = intersectCube(origin, ray, wallCubeMin, wallCubeMax);
+    #ifdef USING_BVH
+    float tObj = intersectTrimesh(origin, ray, uSceneAllVertices, uSceneAllNormals, uSceneBoundingBoxes,
+        uSceneChildIndices, uSceneMeshIndices, uSceneRootIdx);
+    #endif
     float t = infinity;
     if (tRoom.x < tRoom.y) t = tRoom.y;
     if (tWall.x < tWall.y && tWall.x > epsilon && tWall.x < t) t = tWall.x;
     if (tSphere < t) t = tSphere;
     if (tLight < t) t = tLight;
+    #ifdef USING_BVH
+    if (tObj < t) t = tObj;
+    #endif
 
     isect.t = t;
     isect.albedo = WHITECOLOR;
@@ -3300,6 +3545,8 @@ Isect intersect(vec3 ray, vec3 origin) {
     } else if (t == tLight) {
         isect.normal = normalForSphere(isect.position, light, lightSize);
         isect.isLight = true;
+    } else {
+        isect.normal = vec3(0.0, 0.0, 1.0);
     }
     return isect;
 }vec3 cosineWeightedDirection(float seed, vec3 normal) {

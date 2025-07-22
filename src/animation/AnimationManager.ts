@@ -1,6 +1,7 @@
 import {CLoader} from "./AnimationFileLoader";
 import {GUI} from "../pathtracer/Gui";
 import BVH from "./objects/BVH";
+import {BaseRenderer} from "../pathtracer/renderpasses/BaseRenderer";
 
 export default class AnimationManager {
   private scene: CLoader;
@@ -10,6 +11,7 @@ export default class AnimationManager {
   private meshIndices!: Uint32Array;
   private boundingBoxes!: Float32Array;
   private rootIdx: number = 0;
+  private renderer: BaseRenderer | null = null;
   private gui: GUI;
 
   constructor(gui: GUI) {
@@ -27,6 +29,10 @@ export default class AnimationManager {
     this.rootIdx = flattenedBVH.rootIdx;
   }
 
+  public setRenderer(renderer: BaseRenderer): void {
+    this.renderer = renderer;
+  }
+
   /**
    * Loads and sets the scene from a Collada file
    * @param fileLocation URI for the Collada file
@@ -41,6 +47,9 @@ export default class AnimationManager {
     if (this.scene.meshes.length === 0) { return; }
     console.log(this.scene.meshes[0].geometry.position.count);
     this.setBVHData();
+    if (this.renderer) {
+      this.renderer.reset();
+    }
     this.gui.reset();
   }
 
@@ -65,10 +74,16 @@ export default class AnimationManager {
   }
 
   public getAllVertices(): Float32Array {
+    if (this.scene.meshes.length === 0) {
+      return new Float32Array(0);
+    }
     return this.scene.meshes[0].geometry.position.values;
   }
 
   public getAllNormals(): Float32Array {
+    if (this.scene.meshes.length === 0) {
+      return new Float32Array(0);
+    }
     return this.scene.meshes[0].geometry.normal.values;
   }
 

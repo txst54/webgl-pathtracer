@@ -16,6 +16,7 @@ uniform vec2 uRes;
 // use_macro{CONSTANTS}
 // use_macro{RAND_LIB}
 // use_macro{CUBE_LIB}
+// use_macro{TRIMESH_LIB}
 // use_macro{SPHERE_LIB}
 // use_macro{SCENE_LIB}
 // use_macro{RAY_LIB}

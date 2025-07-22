@@ -57,4 +57,5 @@ vec3 ReSTIR_lightEmission = vec3(0.5); // Light intensity/color
 #define WHITECOLOR vec3(.7295, .7355, .729)*0.7
 #define GREENCOLOR vec3(.117, .5125, .115)*0.7
 #define REDCOLOR vec3(.711, .0555, .062)*0.7
+#define INFINITY 10000.0;
 // end_macro

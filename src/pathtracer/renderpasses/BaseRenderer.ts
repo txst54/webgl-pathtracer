@@ -21,6 +21,8 @@ export abstract class BaseRenderer {
         this.gl = gl;
         this.canvas = canvas;
         this.animationManager = pathTracer.getAnimationManager();
+        this.animationManager.setRenderer(this);
+        this.reset();
         this.initialize(pathTracer);
     }
 
@@ -155,52 +157,54 @@ export abstract class BaseRenderer {
         return texture;
     }
 
-
+    public reset() {
+        const DEFAULT_TEXTURE_SIZE = 1024;
+        let i = 0;
+        // 1 for vertices, 1 for normals, 1 for child indices, 1 for mesh indices, 1 for bounding box
+        this.sceneTextureConfig = this.createTextureConfig(5, this.gl.FLOAT);
+        let FLOAT_OPTIONS = {internalFormat: this.gl.RGBA32F, format: this.gl.RGBA, type: this.gl.FLOAT};
+        this.sceneTextureConfig.textures[i++] = this.writeTexture<Float32Array>(this.gl, DEFAULT_TEXTURE_SIZE, DEFAULT_TEXTURE_SIZE,
+          this.animationManager.getAllVertices(), FLOAT_OPTIONS);
+        this.sceneTextureConfig.textures[i++] = this.writeTexture<Float32Array>(this.gl, DEFAULT_TEXTURE_SIZE, DEFAULT_TEXTURE_SIZE,
+          this.animationManager.getAllNormals(), FLOAT_OPTIONS);
+        this.sceneTextureConfig.textures[i++] = this.writeTexture<Float32Array>(this.gl, DEFAULT_TEXTURE_SIZE, DEFAULT_TEXTURE_SIZE,
+          this.animationManager.getBoundingBoxes(), FLOAT_OPTIONS);
+        this.sceneTextureConfig.textures[i++] = this.writeTexture<Uint32Array>(this.gl, DEFAULT_TEXTURE_SIZE, DEFAULT_TEXTURE_SIZE,
+          this.animationManager.getChildIndices(), {internalFormat: this.gl.RGBA32UI, format: this.gl.RGBA_INTEGER, type: this.gl.UNSIGNED_INT});
+        this.sceneTextureConfig.textures[i++] = this.writeTexture<Uint32Array>(this.gl, DEFAULT_TEXTURE_SIZE, DEFAULT_TEXTURE_SIZE,
+          this.animationManager.getMeshIndices(), {internalFormat: this.gl.RGBA32UI, format: this.gl.RGBA_INTEGER, type: this.gl.UNSIGNED_INT});
+    }
 
     protected addAnimationUniforms(renderPass: RenderPass): number {
         const scene = this.animationManager.getScene();
         if (!scene || scene.meshes.length === 0) return 0;
-        // 1 for vertices, 1 for normals, 1 for child indices, 1 for mesh indices, 1 for bounding box
-        this.sceneTextureConfig = this.createTextureConfig(5, this.gl.FLOAT);
         renderPass.addUniform("uSceneRootIdx", (gl, loc) => {
             gl.uniform1i(loc, this.animationManager.getRootIdx());
         });
-        const DEFAULT_TEXTURE_SIZE = 1024;
         let i = 0;
-        let FLOAT_OPTIONS = {internalFormat: this.gl.RGBA32F, format: this.gl.RGBA, type: this.gl.FLOAT};
         renderPass.addUniform(`uSceneAllVertices`, (gl, loc) => {
-            const texture = this.writeTexture<Float32Array>(this.gl, DEFAULT_TEXTURE_SIZE, DEFAULT_TEXTURE_SIZE,
-              this.animationManager.getAllVertices(), FLOAT_OPTIONS);
             gl.activeTexture(gl.TEXTURE0 + i);
-            gl.bindTexture(gl.TEXTURE_2D, texture);
+            gl.bindTexture(gl.TEXTURE_2D, this.sceneTextureConfig.textures[i]);
             gl.uniform1i(loc, i++);
         });
         renderPass.addUniform(`uSceneAllNormals`, (gl, loc) => {
-            const texture = this.writeTexture<Float32Array>(this.gl, DEFAULT_TEXTURE_SIZE, DEFAULT_TEXTURE_SIZE,
-              this.animationManager.getAllNormals(), FLOAT_OPTIONS);
             gl.activeTexture(gl.TEXTURE0 + i);
-            gl.bindTexture(gl.TEXTURE_2D, texture);
+            gl.bindTexture(gl.TEXTURE_2D, this.sceneTextureConfig.textures[i]);
             gl.uniform1i(loc, i++);
         });
         renderPass.addUniform(`uSceneBoundingBoxes`, (gl, loc) => {
-            const texture = this.writeTexture<Float32Array>(this.gl, DEFAULT_TEXTURE_SIZE, DEFAULT_TEXTURE_SIZE,
-              this.animationManager.getBoundingBoxes(), FLOAT_OPTIONS);
             gl.activeTexture(gl.TEXTURE0 + i);
-            gl.bindTexture(gl.TEXTURE_2D, texture);
+            gl.bindTexture(gl.TEXTURE_2D, this.sceneTextureConfig.textures[i]);
             gl.uniform1i(loc, i++);
         });
         renderPass.addUniform(`uSceneChildIndices`, (gl, loc) => {
-            const texture = this.writeTexture<Uint32Array>(this.gl, DEFAULT_TEXTURE_SIZE, DEFAULT_TEXTURE_SIZE,
-              this.animationManager.getChildIndices(), {internalFormat: this.gl.RGBA32UI, format: this.gl.RGBA_INTEGER, type: this.gl.UNSIGNED_INT});
             gl.activeTexture(gl.TEXTURE0 + i);
-            gl.bindTexture(gl.TEXTURE_2D, texture);
+            gl.bindTexture(gl.TEXTURE_2D, this.sceneTextureConfig.textures[i]);
             gl.uniform1i(loc, i++);
         });
         renderPass.addUniform(`uSceneMeshIndices`, (gl, loc) => {
-            const texture = this.writeTexture<Uint32Array>(this.gl, DEFAULT_TEXTURE_SIZE, DEFAULT_TEXTURE_SIZE,
-              this.animationManager.getMeshIndices(), {internalFormat: this.gl.RGBA32UI, format: this.gl.RGBA_INTEGER, type: this.gl.UNSIGNED_INT});
             gl.activeTexture(gl.TEXTURE0 + i);
-            gl.bindTexture(gl.TEXTURE_2D, texture);
+            gl.bindTexture(gl.TEXTURE_2D, this.sceneTextureConfig.textures[i]);
             gl.uniform1i(loc, i++);
         });
         return i;

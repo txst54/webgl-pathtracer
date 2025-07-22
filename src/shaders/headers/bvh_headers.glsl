@@ -10,4 +10,5 @@ uniform int uSceneRootIdx;
 
 #define USING_BVH true
 #define BVH_TEXTURE_SIZE 1024
+#define BVH_QUEUE_SIZE BVH_TEXTURE_SIZE * BVH_TEXTURE_SIZE
 // end_macro

@@ -52,6 +52,8 @@ Isect intersect(vec3 ray, vec3 origin) {
     } else if (t == tLight) {
         isect.normal = normalForSphere(isect.position, light, lightSize);
         isect.isLight = true;
+    } else {
+        isect.normal = vec3(0.0, 0.0, 1.0);
     }
     return isect;
 }
