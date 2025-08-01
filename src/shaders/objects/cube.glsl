@@ -12,7 +12,7 @@ vec2 intersectCube(vec3 origin, vec3 ray, vec3 cubeMin, vec3 cubeMax) {
 bool intersectBoundingBox(vec3 origin, vec3 ray, vec3 cubeMin, vec3 cubeMax) {
     vec2 t = intersectCube(origin, ray, cubeMin, cubeMax);
     // near < far
-    return t.x < t.y;
+    return t.x < t.y && t.y > 0.0;
 }
 
 vec3 normalForCube(vec3 hit, vec3 cubeMin, vec3 cubeMax) {

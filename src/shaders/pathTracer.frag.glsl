@@ -1,15 +1,17 @@
 #version 300 es
 precision highp float;
+precision highp usampler2D;
 
 uniform vec3 uEye;
 uniform float uTime;
-in vec3 initialRay;
-
-uniform sampler2D uTexture;
-uniform float uTextureWeight;
-uniform vec2 uRes;
 
 // use_macro{SCENE_HEADERS}
+
+
+// uniform sampler2D uTexture;
+uniform float uTextureWeight;
+uniform vec2 uRes;
+in vec3 initialRay;
 
 #define EYE_PATH_LENGTH 16
 
@@ -118,7 +120,7 @@ vec3 calculateColor(vec3 origin, vec3 ray, vec3 light) {
 void main() {
 
     // Avoid using 'texture' as a variable name
-    vec3 texColor = texture(uTexture, gl_FragCoord.xy / uRes).rgb;
+    // vec3 texColor = texture(uTexture, gl_FragCoord.xy / uRes).rgb;
 
     // vec3 color = mix(calculateColor(uEye, initialRay, light).rgb, texColor, uTextureWeight);
     vec3 color = calculateColor(uEye, initialRay, light);

@@ -4,9 +4,9 @@ export default class BoundingBox {
   minVertex: Vec3;
   maxVertex: Vec3;
 
-  constructor(minVertex: Vec3, maxVertex: Vec3) {
-    this.minVertex = minVertex;
-    this.maxVertex = maxVertex;
+  constructor(pMinVertex: Vec3, pMaxVertex: Vec3) {
+    this.minVertex = pMinVertex.copy().subtract(new Vec3([0.001, 0.001, 0.001]));
+    this.maxVertex = pMaxVertex.copy().add(new Vec3([0.001, 0.001, 0.001]));
   }
 
   public merge(other: BoundingBox): BoundingBox {
@@ -28,16 +28,21 @@ export default class BoundingBox {
     if (vertices.length === 0) {
       throw new Error("Cannot create BoundingBox from empty vertex array");
     }
-    let minVertex = new Vec3([Infinity, Infinity, Infinity]);
-    let maxVertex = new Vec3([-Infinity, -Infinity, -Infinity]);
+
+    let minX = Infinity, minY = Infinity, minZ = Infinity;
+    let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+
     for (const vertex of vertices) {
-      minVertex.x = Math.min(minVertex.x, vertex.x);
-      minVertex.y = Math.min(minVertex.y, vertex.y);
-      minVertex.z = Math.min(minVertex.z, vertex.z);
-      maxVertex.x = Math.max(maxVertex.x, vertex.x);
-      maxVertex.y = Math.max(maxVertex.y, vertex.y);
-      maxVertex.z = Math.max(maxVertex.z, vertex.z);
+      minX = Math.min(minX, vertex.x);
+      minY = Math.min(minY, vertex.y);
+      minZ = Math.min(minZ, vertex.z);
+      maxX = Math.max(maxX, vertex.x);
+      maxY = Math.max(maxY, vertex.y);
+      maxZ = Math.max(maxZ, vertex.z);
     }
-    return new BoundingBox(minVertex, maxVertex);
+    return new BoundingBox(
+      new Vec3([minX, minY, minZ]),
+      new Vec3([maxX, maxY, maxZ])
+    );
   }
 }

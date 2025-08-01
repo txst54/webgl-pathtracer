@@ -44,7 +44,7 @@ vec3 getTextureFloatVector(sampler2D sceneTexture, int i) {
         int vector_idx = int(curr_idx % 4);
         int LOD = 0;
         vec4 vector = texelFetch(sceneTexture,
-        ivec2(texture_idx % BVH_TEXTURE_SIZE, texture_idx / BVH_TEXTURE_SIZE), LOD);
+        ivec2(texture_idx % uSceneTextureSize, texture_idx / uSceneTextureSize), LOD);
         vector_out[j] = vector[vector_idx];
     }
     return vector_out;
@@ -58,12 +58,12 @@ BoundingBox getTextureBBox(sampler2D sceneBoundingBoxes, int i) {
     return bbox_out;
 }
 
-vec2 getTextureIndices(sampler2D sceneIndices, int i) {
+uvec2 getTextureIndices(usampler2D sceneIndices, int i) {
     int expanded_idx = i * 2;
-    vec2 indices_out;
+    uvec2 indices_out;
     int texture_idx = expanded_idx / 4;
     int LOD = 0;
-    vec4 vector = texelFetch(sceneIndices, ivec2(texture_idx % BVH_TEXTURE_SIZE, texture_idx / BVH_TEXTURE_SIZE), LOD);
+    uvec4 vector = texelFetch(sceneIndices, ivec2(texture_idx % uSceneTextureSize, texture_idx / uSceneTextureSize), LOD);
     if (expanded_idx % 4 == 0) {
         indices_out = vector.rg;
     } else {
@@ -72,47 +72,95 @@ vec2 getTextureIndices(sampler2D sceneIndices, int i) {
     return indices_out;
 }
 
-// BVH Accelerated Intersection
-float intersectTrimesh(vec3 origin, vec3 ray, sampler2D sceneAllVertices, sampler2D sceneAllNormals,
-sampler2D sceneBoundingBoxes, sampler2D sceneChildIndices, sampler2D sceneMeshIndices, int sceneRootIdx) {
-    int queue[1024];
-    int head = 0;
-    int tail = 0;
-    queue[tail++] = sceneRootIdx;
-    while (head < tail) {
-        int top_idx = queue[head];
-        head++;
-        BoundingBox bbox = getTextureBBox(sceneBoundingBoxes, top_idx);
-        if(!intersectBoundingBox(origin, ray, bbox.min, bbox.max)) {
+float intersectBVH(vec3 origin, vec3 ray, sampler2D sceneAllVertices, sampler2D sceneAllNormals,
+sampler2D sceneBoundingBoxes, usampler2D sceneChildIndices, usampler2D sceneMeshIndices,
+int sceneRootIdx, out vec3 normal) {
+
+    const int MAX_STACK_SIZE = 64; // Reduced for better performance
+    int stack[MAX_STACK_SIZE];
+    int stackPtr = 0;
+
+    float closestT = INFINITY; // Use large finite number instead of INFINITY
+    normal = vec3(0.0);
+
+    // Push root onto stack
+    stack[stackPtr++] = sceneRootIdx;
+
+    while (stackPtr > 0 && stackPtr < MAX_STACK_SIZE) {
+        // Pop from stack
+        int nodeIdx = stack[--stackPtr];
+
+        BoundingBox bbox = getTextureBBox(sceneBoundingBoxes, nodeIdx);
+
+        // Test ray against bounding box
+        if (!intersectBoundingBox(origin, ray, bbox.min, bbox.max)) {
             continue;
         }
-        vec2 child_indices = getTextureIndices(sceneChildIndices, top_idx);
-        if (int(child_indices.x) == -1 && int(child_indices.y) == -1) {
-            // leaf node, check for triangular intersection
-            vec2 mesh_indices = getTextureIndices(sceneMeshIndices, top_idx);
-            // TODO check intersection of face
-            int mesh_idx = int(mesh_indices.x);
-            int face_idx = int(mesh_indices.y);
-            // dont do anything with mesh_idx for now
-            vec3 v0 = getTextureFloatVector(sceneAllVertices, face_idx * 3);
-            vec3 v1 = getTextureFloatVector(sceneAllVertices, face_idx * 3 + 1);
-            vec3 v2 = getTextureFloatVector(sceneAllVertices, face_idx * 3 + 2);
-            vec3 n = getTextureFloatVector(sceneAllNormals, face_idx * 3);
+
+        uvec2 childIndices = getTextureIndices(sceneChildIndices, nodeIdx);
+
+        // Check if this is a leaf node
+        if (childIndices.x == uint(4294967295) && childIndices.y == uint(4294967295)) {
+            // Leaf node - test triangle intersection
+            uvec2 meshIndices = getTextureIndices(sceneMeshIndices, nodeIdx);
+            int meshIdx = int(meshIndices.x);
+            int faceIdx = int(meshIndices.y);
+
+            vec3 v0 = getTextureFloatVector(sceneAllVertices, faceIdx * 3);
+            vec3 v1 = getTextureFloatVector(sceneAllVertices, faceIdx * 3 + 1);
+            vec3 v2 = getTextureFloatVector(sceneAllVertices, faceIdx * 3 + 2);
+
             float t, u, v;
             if (rayIntersectTriangle(origin, ray, v0, v1, v2, t, u, v)) {
-                // intersection found
-                vec3 hit_point = origin + t * ray;
-                vec3 normal = normalize(n);
-                return t;
+                if (t < closestT) {
+                    closestT = t;
+                    vec3 n = getTextureFloatVector(sceneAllNormals, faceIdx);
+                    normal = normalize(n);
+                    normal = vec3(0, 0, 1);
+                }
+            }
+        } else {
+            // Internal node - push children onto stack
+            if (int(childIndices.y) != -1 && stackPtr < MAX_STACK_SIZE - 1) {
+                stack[stackPtr++] = int(childIndices.y);
+            }
+            if (int(childIndices.x) != -1 && stackPtr < MAX_STACK_SIZE - 1) {
+                stack[stackPtr++] = int(childIndices.x);
             }
         }
-        if (int(child_indices.x) != -1) {
-            queue[tail++] = int(child_indices.x);
-        }
-        if (int(child_indices.y) != -1) {
-            queue[tail++] = int(child_indices.y);
+    }
+
+    return closestT; // Return -1 for no intersection
+}
+
+float intersectBruteForce(vec3 origin, vec3 ray, sampler2D sceneAllVertices, sampler2D sceneAllNormals, out vec3 normal) {
+    float t = INFINITY;
+    normal = vec3(0.0); // Default normal in case no intersection is found
+    for (int i = 0; i < uSceneNumFaces; i++) {
+        vec3 v0 = getTextureFloatVector(sceneAllVertices, i * 3);
+        vec3 v1 = getTextureFloatVector(sceneAllVertices, i * 3 + 1);
+        vec3 v2 = getTextureFloatVector(sceneAllVertices, i * 3 + 2);
+        float u, v;
+        float t_curr;
+        if (rayIntersectTriangle(origin, ray, v0, v1, v2, t_curr, u, v)) {
+            if (t_curr < t) {
+                t = t_curr;
+                normal = normalize(abs(getTextureFloatVector(uSceneAllNormals, i)));
+                // normal = vec3(0, 0, 1);
+            }
         }
     }
-    return INFINITY;
+    return t;
+}
+
+// BVH Accelerated Intersection
+float intersectTrimesh(vec3 origin, vec3 ray, out vec3 normal) {
+    float t;
+    #if USING_BVH
+    return intersectBVH(origin, ray, uSceneAllVertices, uSceneAllNormals, uSceneBoundingBoxes,
+        uSceneChildIndices, uSceneMeshIndices, uSceneRootIdx, normal);
+    #else
+    return intersectBruteForce(origin, ray, sceneAllVertices, sceneAllNormals, normal);
+    #endif
 }
 // end_macro

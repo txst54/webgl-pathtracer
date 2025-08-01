@@ -4,11 +4,13 @@ uniform sampler2D uSceneAllVertices;
 uniform sampler2D uSceneAllNormals;
 uniform sampler2D uSceneBoundingBoxes;
 // int
-uniform sampler2D uSceneChildIndices;
-uniform sampler2D uSceneMeshIndices;
+uniform usampler2D uSceneChildIndices;
+uniform usampler2D uSceneMeshIndices;
+uniform int uSceneTextureSize;
+uniform int uSceneNumFaces;
 uniform int uSceneRootIdx;
 
-#define USING_BVH true
-#define BVH_TEXTURE_SIZE 1024
-#define BVH_QUEUE_SIZE BVH_TEXTURE_SIZE * BVH_TEXTURE_SIZE
+#define HAS_TRIMESH 1
+#define USING_BVH 1
+#define BVH_TEXTURE_SIZE 8
 // end_macro

@@ -85,7 +85,7 @@ export default class BVH {
           boundingBox: boundingBox,
           mortonCode: 0,
           meshIndex: i,
-          faceIndex: j
+          faceIndex: j / 3
         };
         nodes.push(node);
       }
@@ -96,7 +96,7 @@ export default class BVH {
   private sortBVHNodes(nodes: BVHNode[], sceneMinVertex: Vec3, sceneMaxVertex: Vec3): BVHNode[] {
     nodes.forEach(node => {
       node.mortonCode = this.mortonCode3D(
-        node.boundingBox.minVertex,
+        node.boundingBox.minVertex.copy(),
         sceneMinVertex,
         sceneMaxVertex
       );
@@ -168,7 +168,6 @@ export default class BVH {
       meshIndices.set(flatNode.meshIndices, i * 2);
       boundingBoxes.set(flatNode.boundingBoxes, i * 6);
     }
-
     return {childIndices, meshIndices, boundingBoxes, rootIdx};
   }
 }

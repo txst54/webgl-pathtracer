@@ -14,20 +14,21 @@ struct Isect {
 Isect intersect(vec3 ray, vec3 origin) {
     Isect isect;
     ray = normalize(ray);
-    vec2 tRoom = intersectCube(origin, ray, roomCubeMin, roomCubeMax);
-    float tSphere = intersectSphere(origin, ray, sphereCenter, sphereRadius);
+    // vec2 tRoom = intersectCube(origin, ray, roomCubeMin, roomCubeMax);
+    // float tSphere = intersectSphere(origin, ray, sphereCenter, sphereRadius);
     float tLight = intersectSphere(origin, ray, light, lightSize);
-    vec2 tWall = intersectCube(origin, ray, wallCubeMin, wallCubeMax);
-    #ifdef USING_BVH
-    float tObj = intersectTrimesh(origin, ray, uSceneAllVertices, uSceneAllNormals, uSceneBoundingBoxes,
-        uSceneChildIndices, uSceneMeshIndices, uSceneRootIdx);
+    // vec2 tWall = intersectCube(origin, ray, wallCubeMin, wallCubeMax);
+    #ifdef HAS_TRIMESH
+    vec3 nObj = vec3(0.0, 0.0, 0.0);
+    float tObj = intersectTrimesh(origin, ray, nObj);
+    // float tObj = intersectBruteForce(origin, ray, uSceneAllVertices, uSceneAllNormals, nObj);
     #endif
     float t = infinity;
-    if (tRoom.x < tRoom.y) t = tRoom.y;
-    if (tWall.x < tWall.y && tWall.x > epsilon && tWall.x < t) t = tWall.x;
-    if (tSphere < t) t = tSphere;
+    // if (tRoom.x < tRoom.y) t = tRoom.y;
+    // if (tWall.x < tWall.y && tWall.x > epsilon && tWall.x < t) t = tWall.x;
+    // if (tSphere < t) t = tSphere;
     if (tLight < t) t = tLight;
-    #ifdef USING_BVH
+    #ifdef HAS_TRIMESH
     if (tObj < t) t = tObj;
     #endif
 
@@ -40,20 +41,20 @@ Isect intersect(vec3 ray, vec3 origin) {
         return isect;
     }
 
-    if (t == tRoom.y) {
+    /*if (t == tRoom.y) {
         isect.normal = -normalForCube(isect.position, roomCubeMin, roomCubeMax);
         if(isect.position.x < -9.9999) isect.albedo = GREENCOLOR;
         else if(isect.position.x > 9.9999) isect.albedo = REDCOLOR;
-    }  else if (t == tWall.x) {
+    } else if (t == tWall.x) {
         isect.normal = normalForCube(isect.position, wallCubeMin, wallCubeMax);
         isect.albedo = WHITECOLOR; // Wall color
     } else if (t == tSphere) {
         isect.normal = normalForSphere(isect.position, sphereCenter, sphereRadius);
-    } else if (t == tLight) {
+    } else */if (t == tLight) {
         isect.normal = normalForSphere(isect.position, light, lightSize);
         isect.isLight = true;
     } else {
-        isect.normal = vec3(0.0, 0.0, 1.0);
+        isect.normal = nObj;
     }
     return isect;
 }

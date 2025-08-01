@@ -46,10 +46,11 @@ export default class AnimationManager {
   public initScene(): void {
     if (this.scene.meshes.length === 0) { return; }
     console.log(this.scene.meshes[0].geometry.position.count);
+    console.log(this.scene.meshes[0].geometry.position.values);
     this.setBVHData();
-    if (this.renderer) {
-      this.renderer.reset();
-    }
+    // if (this.renderer) {
+    //   this.renderer.reset();
+    // }
     this.gui.reset();
   }
 
@@ -86,6 +87,12 @@ export default class AnimationManager {
     }
     return this.scene.meshes[0].geometry.normal.values;
   }
+
+  public getNumFaces(): number {
+    if (this.scene.meshes.length === 0) return 0;
+    return this.scene.meshes[0].geometry.position.count / 3
+  }
+
 
   public getLoadedScene(): string {
     return this.loadedScene || "";

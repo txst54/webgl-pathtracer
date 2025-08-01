@@ -174,7 +174,7 @@ export class RenderPass {
   }
 
   public addUniform(name: string,
-                    bindFunction: (gl: WebGLRenderingContext, loc: WebGLUniformLocation) => void) {
+                    bindFunction: (gl: WebGL2RenderingContext, loc: WebGLUniformLocation) => void) {
     this.uniforms.set(name, new Uniform(0, bindFunction));
   }
 
@@ -185,13 +185,13 @@ export class RenderPass {
   public addAttribute(attribName: string, size: number, type: GLenum, normalized: boolean,
                       stride: number, offset: number, bufferName?: string, bufferData?: BufferData) {
                       
-                      this.addAttributeHelper(attribName, size, type, normalized, stride, offset, bufferName, bufferData, 0);
+                      this.addAttributeHelper(attribName, size, type, normalized, stride, offset, bufferName || "", bufferData, 0);
   }
   
   public addInstancedAttribute(attribName: string, size: number, type: GLenum, normalized: boolean,
                       stride: number, offset: number, bufferName?: string, bufferData?: BufferData) {
                       
-                      this.addAttributeHelper(attribName, size, type, normalized, stride, offset, bufferName, bufferData, 1);
+                      this.addAttributeHelper(attribName, size, type, normalized, stride, offset, bufferName || "", bufferData, 1);
   }
   
   public updateAttributeBuffer(bufferName: string, bufferData : BufferData) {        
@@ -207,7 +207,7 @@ export class RenderPass {
   }
 
   private addAttributeHelper(attribName: string, size: number, type: GLenum, normalized: boolean,
-                      stride: number, offset: number, bufferName: string, bufferData: BufferData, divisor: number) {
+                      stride: number, offset: number, bufferName: string, bufferData: BufferData | undefined, divisor: number) {
 
     if (!bufferName) {
       bufferName = attribName;
@@ -250,10 +250,10 @@ export class RenderPass {
 
 class Uniform {
   public location: WebGLUniformLocation;
-  public bindFunction: (gl: WebGLRenderingContext, loc: WebGLUniformLocation) => void;
+  public bindFunction: (gl: WebGL2RenderingContext, loc: WebGLUniformLocation) => void;
 
   constructor(location: WebGLUniformLocation,
-              bindFunction: (gl: WebGLRenderingContext, loc: WebGLUniformLocation) => void) {
+              bindFunction: (gl: WebGL2RenderingContext, loc: WebGLUniformLocation) => void) {
     this.location = location;
     this.bindFunction = bindFunction;
   }
