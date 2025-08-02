@@ -1,7 +1,6 @@
 // begin_macro{SCENE_HEADERS}
 // float
 uniform sampler2D uSceneAllVertices;
-uniform sampler2D uSceneAllNormals;
 uniform sampler2D uSceneBoundingBoxes;
 // int
 uniform usampler2D uSceneChildIndices;

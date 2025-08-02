@@ -16,8 +16,8 @@ export default class MISRenderer extends BaseRenderer {
 
     private setupPathTracerPass(pathTracer: PathTracer): void {
         console.log("SETTING UP PATH TRACER PASS");
-        const numIndices = this.setupRayRenderPass(this.renderPasses.pathTracer, pathTracer);
-        this.renderPasses.pathTracer.setDrawData(this.gl.TRIANGLES, numIndices, this.gl.UNSIGNED_SHORT, 0);
+        const { indices, textureOffset } = this.setupRayRenderPass(this.renderPasses.pathTracer, pathTracer);
+        this.renderPasses.pathTracer.setDrawData(this.gl.TRIANGLES, indices, this.gl.UNSIGNED_SHORT, 0);
         this.renderPasses.pathTracer.setup();
     }
 

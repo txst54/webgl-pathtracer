@@ -14,10 +14,10 @@ import AnimationManager from "../animation/AnimationManager";
 // Rendering modes
 enum RenderMode {
   MIS = 0,
-  // RIS = 1,
-  // RESTIR_SPATIAL = 2,
-  // RESTIR_TEMPORAL = 3,
-  // RESTIR_GI = 4
+  RIS = 1,
+  RESTIR_SPATIAL = 2,
+  RESTIR_TEMPORAL = 3,
+  RESTIR_GI = 4
 }
 
 interface CameraRays {
@@ -29,7 +29,7 @@ interface CameraRays {
 
 export class PathTracer extends CanvasAnimation {
   private static readonly MODE_NAMES = ["MIS", "RIS", "ReSTIR DI [Spatial Pass]", "ReSTIR DI", "ReSTIR GI"];
-  private static readonly MOVEMENT_SPEED = 0.2;
+  private static readonly MOVEMENT_SPEED = 0.05;
 
   // Core components
   private gui!: GUI;
@@ -79,7 +79,7 @@ export class PathTracer extends CanvasAnimation {
 
   private initializeAnimationManager(): void {
     this.animationManager = new AnimationManager(this.gui);
-    this.animationManager.setScene("assets/robot.dae");
+    this.animationManager.setScene("assets/split_cube.dae");
   }
 
   private setupWebGL(): void {
@@ -99,10 +99,10 @@ export class PathTracer extends CanvasAnimation {
   private createRenderers(): void {
     this.renderers = {
       [RenderMode.MIS]: new MISRenderer(this.ctx, this.canvas2d, this),
-      // [RenderMode.RIS]: new RISRenderer(this.ctx, this.canvas2d, this),
-      // [RenderMode.RESTIR_SPATIAL]: new ReSTIRDISpatialRenderer(this.ctx, this.canvas2d, this),
-      // [RenderMode.RESTIR_TEMPORAL]: new ReSTIRDIRenderer(this.ctx, this.canvas2d, this),
-      // [RenderMode.RESTIR_GI]: new ReSTIRGIRenderer(this.ctx, this.canvas2d, this)
+      [RenderMode.RIS]: new RISRenderer(this.ctx, this.canvas2d, this),
+      [RenderMode.RESTIR_SPATIAL]: new ReSTIRDISpatialRenderer(this.ctx, this.canvas2d, this),
+      [RenderMode.RESTIR_TEMPORAL]: new ReSTIRDIRenderer(this.ctx, this.canvas2d, this),
+      [RenderMode.RESTIR_GI]: new ReSTIRGIRenderer(this.ctx, this.canvas2d, this)
     };
   }
 

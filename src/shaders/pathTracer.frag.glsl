@@ -13,7 +13,7 @@ uniform float uTextureWeight;
 uniform vec2 uRes;
 in vec3 initialRay;
 
-#define EYE_PATH_LENGTH 16
+#define EYE_PATH_LENGTH 4
 
 // use_macro{CONSTANTS}
 // use_macro{RAND_LIB}

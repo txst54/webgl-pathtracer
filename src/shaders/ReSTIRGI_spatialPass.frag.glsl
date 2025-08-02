@@ -1,10 +1,14 @@
 #version 300 es
 precision highp float;
+precision highp usampler2D;
 
 uniform vec3 uEye, uRay00, uRay01, uRay10, uRay11;
 uniform vec2 uRes;
 uniform float uTime;
 in vec3 initialRay;
+
+// use_macro{SCENE_HEADERS}
+
 out vec4 fragColor;
 uniform sampler2D uDirectReservoirData1;
 uniform sampler2D uDirectReservoirData2;
@@ -19,6 +23,7 @@ uniform sampler2D uDepthMap;
 // use_macro{RAND_LIB}
 // use_macro{SPHERE_LIB}
 // use_macro{CUBE_LIB}
+// use_macro{TRIMESH_LIB}
 // use_macro{SCENE_LIB}
 // use_macro{RAY_LIB}
 // use_macro{RESTIR_RESERVOIR_LIB}

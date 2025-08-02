@@ -1,9 +1,12 @@
 #version 300 es
 precision highp float;
+precision highp usampler2D;
 
 uniform vec3 uEye;
 uniform float uTime;
 in vec3 initialRay;
+
+// use_macro{SCENE_HEADERS}
 
 uniform sampler2D uTexture;
 uniform float uTextureWeight;
@@ -16,6 +19,7 @@ uniform vec2 uRes;
 // use_macro{RAND_LIB}
 // use_macro{CUBE_LIB}
 // use_macro{SPHERE_LIB}
+// use_macro{TRIMESH_LIB}
 // use_macro{SCENE_LIB}
 // use_macro{RAY_LIB}
 // use_macro{RIS_UTIL}

@@ -57,43 +57,43 @@ export default class ReSTIRDIRenderer extends BaseRenderer {
     }
 
     private setupTemporalPass(renderPass: RenderPass, pathTracer: PathTracer, offset: number): void {
-        const numIndices = this.setupRayRenderPass(renderPass, pathTracer);
+        const { indices, textureOffset } = this.setupRayRenderPass(renderPass, pathTracer);
 
         for (let i = 0; i < ReSTIRDIRenderer.RESERVOIR_TEXTURES; i++) {
             renderPass.addUniform(`uReservoirData${i + 1}`, (gl, loc) => {
-                gl.activeTexture(gl.TEXTURE0 + i);
+                gl.activeTexture(gl.TEXTURE0 + i + textureOffset);
                 gl.bindTexture(gl.TEXTURE_2D, this.spatialTemporalConfig.textures[i + offset]);
-                gl.uniform1i(loc, i);
+                gl.uniform1i(loc, i + textureOffset);
             });
         }
         renderPass.addUniform(`uDepthMap`, (gl, loc) => {
-            gl.activeTexture(gl.TEXTURE0 + 2);
+            gl.activeTexture(gl.TEXTURE0 + 2 + textureOffset);
             gl.bindTexture(gl.TEXTURE_2D, this.spatialTemporalConfig.textures[2 + offset]);
-            gl.uniform1i(loc, 2);
+            gl.uniform1i(loc, 2 + textureOffset);
         });
 
         renderPass.addUniform(`uNormalMap`, (gl, loc) => {
-            gl.activeTexture(gl.TEXTURE0 + 3);
+            gl.activeTexture(gl.TEXTURE0 + 3 + textureOffset);
             gl.bindTexture(gl.TEXTURE_2D, this.spatialTemporalConfig.textures[3 + offset]);
-            gl.uniform1i(loc, 3);
+            gl.uniform1i(loc, 3 + textureOffset);
         });
 
-        renderPass.setDrawData(this.gl.TRIANGLES, numIndices, this.gl.UNSIGNED_SHORT, 0);
+        renderPass.setDrawData(this.gl.TRIANGLES, indices, this.gl.UNSIGNED_SHORT, 0);
         renderPass.setup();
     }
 
     private setupSpatialPass(renderPass: RenderPass, pathTracer: PathTracer, offset: number): void {
-        const numIndices = this.setupRayRenderPass(renderPass, pathTracer);
+        const { indices, textureOffset } = this.setupRayRenderPass(renderPass, pathTracer);
 
         for (let i = 0; i < ReSTIRDIRenderer.RESERVOIR_TEXTURES; i++) {
             renderPass.addUniform(`uReservoirData${i + 1}`, (gl, loc) => {
-                gl.activeTexture(gl.TEXTURE0 + i);
+                gl.activeTexture(gl.TEXTURE0 + i + textureOffset);
                 gl.bindTexture(gl.TEXTURE_2D, this.spatialTemporalConfig.textures[i + offset]);
-                gl.uniform1i(loc, i);
+                gl.uniform1i(loc, i + textureOffset);
             });
         }
 
-        renderPass.setDrawData(this.gl.TRIANGLES, numIndices, this.gl.UNSIGNED_SHORT, 0);
+        renderPass.setDrawData(this.gl.TRIANGLES, indices, this.gl.UNSIGNED_SHORT, 0);
         renderPass.setup();
     }
 }

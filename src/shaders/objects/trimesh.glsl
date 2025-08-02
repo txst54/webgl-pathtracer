@@ -72,7 +72,7 @@ uvec2 getTextureIndices(usampler2D sceneIndices, int i) {
     return indices_out;
 }
 
-float intersectBVH(vec3 origin, vec3 ray, sampler2D sceneAllVertices, sampler2D sceneAllNormals,
+float intersectBVH(vec3 origin, vec3 ray, sampler2D sceneAllVertices,
 sampler2D sceneBoundingBoxes, usampler2D sceneChildIndices, usampler2D sceneMeshIndices,
 int sceneRootIdx, out vec3 normal) {
 
@@ -114,18 +114,22 @@ int sceneRootIdx, out vec3 normal) {
             if (rayIntersectTriangle(origin, ray, v0, v1, v2, t, u, v)) {
                 if (t < closestT) {
                     closestT = t;
-                    vec3 n = getTextureFloatVector(sceneAllNormals, faceIdx);
-                    normal = normalize(n);
-                    normal = vec3(0, 0, 1);
+                    // vec3 n = getTextureFloatVector(sceneAllNormals, faceIdx);
+                    // normal = normalize(n);
+                    vec3 edge1 = v1 - v0;
+                    vec3 edge2 = v2 - v0;
+                    normal = normalize(cross(edge1, edge2));
                 }
             }
         } else {
-            // Internal node - push children onto stack
-            if (int(childIndices.y) != -1 && stackPtr < MAX_STACK_SIZE - 1) {
-                stack[stackPtr++] = int(childIndices.y);
-            }
-            if (int(childIndices.x) != -1 && stackPtr < MAX_STACK_SIZE - 1) {
-                stack[stackPtr++] = int(childIndices.x);
+            if (stackPtr < MAX_STACK_SIZE - 2) {
+                // Ensure we have space to push children onto the stack
+                if (childIndices.x != uint(4294967295)) {
+                    stack[stackPtr++] = int(childIndices.x);
+                }
+                if (childIndices.y != uint(4294967295)) {
+                    stack[stackPtr++] = int(childIndices.y);
+                }
             }
         }
     }
@@ -145,8 +149,8 @@ float intersectBruteForce(vec3 origin, vec3 ray, sampler2D sceneAllVertices, sam
         if (rayIntersectTriangle(origin, ray, v0, v1, v2, t_curr, u, v)) {
             if (t_curr < t) {
                 t = t_curr;
-                normal = normalize(abs(getTextureFloatVector(uSceneAllNormals, i)));
-                // normal = vec3(0, 0, 1);
+                // normal = normalize(abs(getTextureFloatVector(uSceneAllNormals, i)));
+                normal = vec3(0, 0, 1);
             }
         }
     }
@@ -157,10 +161,10 @@ float intersectBruteForce(vec3 origin, vec3 ray, sampler2D sceneAllVertices, sam
 float intersectTrimesh(vec3 origin, vec3 ray, out vec3 normal) {
     float t;
     #if USING_BVH
-    return intersectBVH(origin, ray, uSceneAllVertices, uSceneAllNormals, uSceneBoundingBoxes,
+    return intersectBVH(origin, ray, uSceneAllVertices, uSceneBoundingBoxes,
         uSceneChildIndices, uSceneMeshIndices, uSceneRootIdx, normal);
     #else
-    return intersectBruteForce(origin, ray, sceneAllVertices, sceneAllNormals, normal);
+    // return intersectBruteForce(origin, ray, sceneAllVertices, sceneAllNormals, normal);
     #endif
 }
 // end_macro

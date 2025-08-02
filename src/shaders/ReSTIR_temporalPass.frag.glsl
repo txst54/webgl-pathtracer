@@ -1,5 +1,6 @@
 #version 300 es
 precision highp float;
+precision highp usampler2D;
 
 uniform vec3 uEye, uRay00, uRay01, uRay10, uRay11;
 uniform vec2 uRes;
@@ -7,6 +8,8 @@ uniform float uTime;
 uniform mat4 uViewMatPrev;
 uniform mat4 uProjMatPrev;
 in vec3 initialRay;
+
+// use_macro{SCENE_HEADERS}
 
 // previous state data
 uniform sampler2D uReservoirData1;
@@ -25,6 +28,7 @@ layout(location = 3) out vec4 out_NormalMap;
 // use_macro{CONSTANTS}
 // use_macro{SPHERE_LIB}
 // use_macro{CUBE_LIB}
+// use_macro{TRIMESH_LIB}
 // use_macro{SCENE_LIB}
 // use_macro{RESTIR_RESERVOIR_LIB}
 // use_macro{RESTIRGI_RESERVOIR_LIB}

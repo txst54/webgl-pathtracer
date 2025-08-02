@@ -1,10 +1,14 @@
 #version 300 es
 precision highp float;
+precision highp usampler2D;
 
 uniform vec3 uEye;
 uniform vec2 uRes;
 uniform float uTime;
 in vec3 initialRay;
+
+// use_macro{SCENE_HEADERS}
+
 layout(location = 0) out vec4 out_ReservoirData1;
 layout(location = 1) out vec4 out_ReservoirData2;
 
@@ -15,6 +19,7 @@ layout(location = 1) out vec4 out_ReservoirData2;
 // use_macro{RAND_LIB}
 // use_macro{CUBE_LIB}
 // use_macro{SPHERE_LIB}
+// use_macro{TRIMESH_LIB}
 // use_macro{SCENE_LIB}
 // use_macro{RAY_LIB}
 // use_macro{RIS_UTIL}

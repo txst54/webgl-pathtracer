@@ -33,17 +33,20 @@ export default class ReSTIRDISpatialRenderer extends BaseRenderer {
 
     private setupPasses(pathTracer: PathTracer): void {
         // Setup initial pass
-        const numIndices1 = this.setupRayRenderPass(this.renderPasses.restirInit, pathTracer);
+        let pkg = this.setupRayRenderPass(this.renderPasses.restirInit, pathTracer);
+        const numIndices1 = pkg.indices;
         this.renderPasses.restirInit.setDrawData(this.gl.TRIANGLES, numIndices1, this.gl.UNSIGNED_SHORT, 0);
         this.renderPasses.restirInit.setup();
 
         // Setup spatial pass
-        const numIndices2 = this.setupRayRenderPass(this.renderPasses.restirSpatial, pathTracer);
+        pkg = this.setupRayRenderPass(this.renderPasses.restirSpatial, pathTracer);
+        const numIndices2 = pkg.indices;
+        const textureOffset = pkg.textureOffset;
         for (let i = 0; i < this.textureConfig.count; i++) {
             this.renderPasses.restirSpatial.addUniform(`uReservoirData${i + 1}`, (gl, loc) => {
-                gl.activeTexture(gl.TEXTURE0 + i);
+                gl.activeTexture(gl.TEXTURE0 + i + textureOffset);
                 gl.bindTexture(gl.TEXTURE_2D, this.textureConfig.textures[i]);
-                gl.uniform1i(loc, i);
+                gl.uniform1i(loc, i + textureOffset);
             });
         }
         this.renderPasses.restirSpatial.setDrawData(this.gl.TRIANGLES, numIndices2, this.gl.UNSIGNED_SHORT, 0);

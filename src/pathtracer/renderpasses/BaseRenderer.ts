@@ -52,7 +52,8 @@ export abstract class BaseRenderer {
     this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA32F, this.canvas.width, this.canvas.height, 0, this.gl.RGBA, this.gl.FLOAT, zeros);
   }
 
-  protected setupRayRenderPass(renderPass: RenderPass, pathTracer: PathTracer): number {
+  protected setupRayRenderPass(renderPass: RenderPass, pathTracer: PathTracer):
+    { indices: number, textureOffset: number } {
     const quadVertices = new Float32Array([-1, -1, -1, 1, 1, -1, 1, 1]);
     const indices = new Uint16Array([0, 2, 1, 2, 3, 1]);
 
@@ -68,12 +69,12 @@ export abstract class BaseRenderer {
       console.log("Created Textures");
     }
 
-    this.addAnimationUniforms(renderPass);
+    const textureOffset = this.addAnimationUniforms(renderPass);
     this.addCameraUniforms(renderPass, pathTracer);
     this.addTimeUniforms(renderPass, pathTracer);
     this.addRenderingUniforms(renderPass, pathTracer);
 
-    return indices.length;
+    return { indices: indices.length, textureOffset };
   }
 
   protected addCameraUniforms(renderPass: RenderPass, pathTracer: PathTracer): void {
@@ -129,9 +130,9 @@ export abstract class BaseRenderer {
     const expectedLength = texelCount * channels;
 
     let paddedData: T;
-    if (this.logged) {
-      console.log(`Updating texture data: width=${width}, height=${height}, expectedLength=${expectedLength}, actualLength=${data.length}`);
-    }
+    // if (this.logged) {
+    //   console.log(`Updating texture data: width=${width}, height=${height}, expectedLength=${expectedLength}, actualLength=${data.length}`);
+    // }
     if (data.length < expectedLength) {
       const TypedArrayConstructor = (data.constructor as new (length: number) => T);
       paddedData = new TypedArrayConstructor(expectedLength);
@@ -200,84 +201,50 @@ export abstract class BaseRenderer {
     return Math.ceil(Math.sqrt(maxSize));
   }
 
+  private addFloatAnimationTexture(
+    renderPass: RenderPass,
+    name: string,
+    dataFunc: () => Float32Array,
+    index: number
+  ) {
+    renderPass.addUniform(name, (gl, loc) => {
+      let FLOAT_OPTIONS = {internalFormat: gl.RGBA32F, format: gl.RGBA, type: gl.FLOAT};
+      // if (this.logged) {
+      //   console.log("Adding", name);
+      // }
+      const size = this.getSceneTextureSize(gl);
+      const texture = this.updateTextureData(gl, this.sceneTextureConfig!.textures[index], size, size, dataFunc(), FLOAT_OPTIONS);
+      gl.activeTexture(gl.TEXTURE0 + index);
+      gl.bindTexture(gl.TEXTURE_2D, texture);
+      gl.uniform1i(loc, index);
+    });
+  }
+
+  private addUintAnimationTexture(
+    renderPass: RenderPass,
+    name: string,
+    dataFunc: () => Uint32Array,
+    index: number
+  ) {
+    renderPass.addUniform(name, (gl, loc) => {
+      let UNSIGNED_OPTIONS = {internalFormat: gl.RGBA32UI, format: gl.RGBA_INTEGER, type: gl.UNSIGNED_INT};
+      // if (this.logged) {
+      //   console.log("Adding", name);
+      // }
+      const size = this.getSceneTextureSize(gl);
+      const texture = this.updateTextureData(gl, this.sceneTextureConfig!.textures[index], size, size, dataFunc(), UNSIGNED_OPTIONS);
+      gl.activeTexture(gl.TEXTURE0 + index);
+      gl.bindTexture(gl.TEXTURE_2D, texture);
+      gl.uniform1i(loc, index);
+    });
+  }
+
   protected addAnimationUniforms(renderPass: RenderPass): number {
-    const TEXTURE_SIZE = 8;
-    renderPass.addUniform(`uSceneAllVertices`, (gl, loc) => {
-      let FLOAT_OPTIONS = {internalFormat: gl.RGBA32F, format: gl.RGBA, type: gl.FLOAT};
-      if (this.sceneTextureConfig === null) {
-        throw new Error("Scene texture config is not initialized");
-      }
-      if (this.logged) {
-        console.log("Adding uSceneAllVertices");
-      }
-      const size = this.getSceneTextureSize(gl);
-      const texture = this.updateTextureData(gl, this.sceneTextureConfig.textures[0], size, size, this.animationManager.getAllVertices(), FLOAT_OPTIONS);
-      gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, texture);
-      gl.uniform1i(loc, 0);
-    });
-    renderPass.addUniform("uSceneAllNormals", (gl, loc) => {
-      let FLOAT_OPTIONS = {internalFormat: gl.RGBA32F, format: gl.RGBA, type: gl.FLOAT};
-      if (this.sceneTextureConfig === null) {
-        throw new Error("Scene texture config is not initialized");
-      }
-      if (this.logged) {
-        console.log("Adding uSceneAllNormals");
-      }
-      const size = this.getSceneTextureSize(gl);
-      const texture = this.updateTextureData(gl, this.sceneTextureConfig.textures[1], size, size, this.animationManager.getAllNormals(), FLOAT_OPTIONS);
-      gl.activeTexture(gl.TEXTURE0 + 1);
-      gl.bindTexture(gl.TEXTURE_2D, texture);
-      gl.uniform1i(loc, 1);
-    });
+    this.addFloatAnimationTexture(renderPass, `uSceneAllVertices`, () => this.animationManager.getAllVertices(), 0);
+    this.addFloatAnimationTexture(renderPass, `uSceneBoundingBoxes`, () => this.animationManager.getBoundingBoxes(), 1);
+    this.addUintAnimationTexture(renderPass, `uSceneChildIndices`, () => this.animationManager.getChildIndices(), 2);
+    this.addUintAnimationTexture(renderPass, `uSceneMeshIndices`, () => this.animationManager.getMeshIndices(), 3);
 
-    renderPass.addUniform("uSceneBoundingBoxes", (gl, loc) => {
-      let FLOAT_OPTIONS = {internalFormat: gl.RGBA32F, format: gl.RGBA, type: gl.FLOAT};
-      if (this.sceneTextureConfig === null) {
-        throw new Error("Scene texture config is not initialized");
-      }
-      if (this.logged) {
-        console.log("Adding uSceneAllBoundingBoxes");
-      }
-      const size = this.getSceneTextureSize(gl);
-      const texture = this.updateTextureData(gl, this.sceneTextureConfig.textures[2], size, size, this.animationManager.getBoundingBoxes(), FLOAT_OPTIONS);
-      gl.activeTexture(gl.TEXTURE0 + 2);
-      gl.bindTexture(gl.TEXTURE_2D, texture);
-      gl.uniform1i(loc, 2);
-    });
-
-    renderPass.addUniform("uSceneChildIndices", (gl, loc) => {
-      let UNSIGNED_OPTIONS = {internalFormat: gl.RGBA32UI, format: gl.RGBA_INTEGER, type: gl.UNSIGNED_INT};
-      if (this.sceneTextureConfig === null) {
-        throw new Error("Scene texture config is not initialized");
-      }
-      if (this.logged) {
-        console.log("Adding uSceneAllChildIndices");
-      }
-      const size = this.getSceneTextureSize(gl);
-      const texture = this.updateTextureData(gl, this.sceneTextureConfig.textures[3], size, size, this.animationManager.getChildIndices(), UNSIGNED_OPTIONS);
-      gl.activeTexture(gl.TEXTURE0 + 3);
-      gl.bindTexture(gl.TEXTURE_2D, texture);
-      gl.uniform1i(loc, 3);
-    });
-
-    renderPass.addUniform("uSceneMeshIndices", (gl, loc) => {
-      let UNSIGNED_OPTIONS = {internalFormat: gl.RGBA32UI, format: gl.RGBA_INTEGER, type: gl.UNSIGNED_INT};
-      if (this.sceneTextureConfig === null) {
-        throw new Error("Scene texture config is not initialized");
-      }
-      if (this.logged) {
-        console.log("Adding uSceneAllMeshIndices");
-      }
-      const size = this.getSceneTextureSize(gl);
-      const texture = this.updateTextureData(gl, this.sceneTextureConfig.textures[4], size, size, this.animationManager.getMeshIndices(), UNSIGNED_OPTIONS);
-      if (this.logged) {
-        this.logged = this.logged - 1;
-      }
-      gl.activeTexture(gl.TEXTURE0 + 4);
-      gl.bindTexture(gl.TEXTURE_2D, texture);
-      gl.uniform1i(loc, 4);
-    });
     renderPass.addUniform("uSceneTextureSize", (gl, loc) => {
       const size = this.getSceneTextureSize(gl);
       gl.uniform1i(loc, size);
@@ -290,6 +257,6 @@ export abstract class BaseRenderer {
       const rootIndex = this.animationManager.getRootIdx();
       gl.uniform1i(loc, rootIndex);
     });
-    return 0;
+    return 4;
   }
 }
