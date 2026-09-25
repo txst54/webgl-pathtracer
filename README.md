@@ -2,6 +2,9 @@
 
 This is a custom implementation of path tracing via Monte-Carlo integration in WebGL 2.0 and also serves as an experimental rendering engine for me to test various SoTA algorithms. 
 
+<img width="1530" height="818" alt="path_tracer" src="https://github.com/user-attachments/assets/b05a3f4e-4770-4a77-806d-6597192a3bf8" />
+
+
 Modes Supported: 
  - Multiple Importance Sampling (MIS, keybind `1`)
  - Resampled Importance Sampling (RIS, keybind `2`)
